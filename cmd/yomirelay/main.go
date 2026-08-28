@@ -21,6 +21,7 @@ import (
 	"yomirelay/internal/platform"
 	"yomirelay/internal/receiver"
 	"yomirelay/internal/steam"
+	"yomirelay/internal/translation"
 	"yomirelay/internal/web"
 )
 
@@ -89,7 +90,8 @@ func Run(ctx context.Context, config Config, logger *log.Logger) error {
 		return fmt.Errorf("discover games: %w", err)
 	}
 	logger.Printf("discovered %d Ren'Py games", len(registry.List()))
-	apiHandler := api.New(api.Dependencies{Games: registry, Hooks: manager, Store: store, Broker: broker, Logger: logger})
+	codex := translation.New("codex")
+	apiHandler := api.New(api.Dependencies{Games: registry, Hooks: manager, Store: store, Broker: broker, Translator: codex.Translate, Logger: logger})
 	listener, err := receiver.Listen(ctx, config.UDPAddr, func(value dialogue.Dialogue) {
 		store.Append(value)
 		broker.Publish(value)
