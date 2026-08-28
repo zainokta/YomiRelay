@@ -119,7 +119,7 @@ A refresh action is represented by `GET /api/games?refresh=1`, avoiding an extra
 
 The server responds with appropriate 4xx errors for unknown app IDs, invalid app IDs, unmanaged hook files, invalid dialogue query parameters, and unsupported methods. It reports a concise 5xx JSON error and logs unexpected backend failures.
 
-`internal/web` embeds `all:static` using `embed.FS`, serves hashed Vite assets, and falls back to `index.html` for SPA navigation while keeping `/api/` separate. Vite builds to `internal/web/static`, allowing the production binary to contain all frontend assets and need neither Node.js nor npm at runtime.
+`internal/web` embeds `all:static` using `embed.FS`, serves hashed Vite assets, and falls back to `index.html` for SPA navigation while keeping `/api/` separate. A small tracked placeholder `static/index.html` keeps Go embedding/test builds valid before Vite runs; Vite replaces it during production builds and writes all assets to `internal/web/static`, allowing the binary to contain the complete frontend and need neither Node.js nor npm at runtime.
 
 ## Frontend behavior
 
@@ -185,7 +185,7 @@ internal/events/broker_test.go
 internal/api/server.go
 internal/api/server_test.go
 internal/web/assets.go
-internal/web/static/.gitkeep
+internal/web/static/index.html
 frontend/package.json
 frontend/package-lock.json
 frontend/tsconfig.json
