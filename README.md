@@ -1,6 +1,6 @@
 # YomiRelay
 
-YomiRelay is a local Ren'Py dialogue relay: it sends installed Ren'Py Steam-game dialogue to ordinary selectable browser text on localhost. It is not an OCR, translator, dictionary, clipboard, process-injection, or remote-access tool.
+YomiRelay is a local Ren'Py dialogue relay: it sends installed Ren'Py Steam-game dialogue to ordinary selectable browser text on localhost. The Reader can optionally ask a locally authenticated Codex CLI for English translations and Japanese word glosses. It is not an OCR, dictionary, clipboard, process-injection, or remote-access tool.
 
 ## Requirements and quick start
 
@@ -10,6 +10,8 @@ YomiRelay is a local Ren'Py dialogue relay: it sends installed Ren'Py Steam-game
 
 For development, run `./dev.sh`, then open **http://127.0.0.1:5173**. For a production binary, run `./build.sh`, then `./dist/yomirelay` and open **http://127.0.0.1:17321**. The frontend uses Vite only during development/build; the binary embeds its static assets and needs no Node.js at runtime.
 
+Translation is optional. Install the Codex CLI, sign in with your ChatGPT account, and make `codex` available on `PATH` if you want English translations. YomiRelay does not check this at startup; the Reader starts in Japanese-only mode. If the CLI is missing or not authenticated, enabling translation simply returns the Reader to Japanese-only mode. See the [Codex CLI guide](https://learn.chatgpt.com/docs/codex/cli) for setup.
+
 The backend defaults to HTTP `127.0.0.1:17321` and loopback UDP `127.0.0.1:17322`. `YOMIRELAY_HTTP_ADDR` and `YOMIRELAY_UDP_ADDR` may override these addresses, but they must remain loopback addresses.
 
 ## Safety and discovery
@@ -18,7 +20,7 @@ Steam discovery checks known platform Steam roots and only configured `steamapps
 
 Hook installation writes only `<install>/game/_yomirelay_hook.rpy`. It uses the two YomiRelay ownership markers, refuses symbolic links and unmanaged files, and atomically updates managed files. Removing a hook also requires ownership markers. Restart the game after installing a hook. Dialogue is kept in memory (up to 1000 entries per game) and is not persisted.
 
-The Reader renders normal light-DOM text with `lang="ja"`, so Yomitan can inspect it through its ordinary browser scanning behavior. YomiRelay does not call Yomitan APIs. The MVP has no OCR, screenshots, clipboard monitoring, process scanning/injection, Textractor, translation, dictionaries, furigana, Anki, accounts, authentication, cloud sync, persistence, game launching, or non-Ren'Py source.
+The Reader renders normal light-DOM text with `lang="ja"`, so Yomitan can inspect it through its ordinary browser scanning behavior. YomiRelay does not call Yomitan APIs. Optional translation uses only the local `codex` executable after the user enables it; the MVP has no OCR, screenshots, clipboard monitoring, process scanning/injection, Textractor, dictionary APIs, furigana, Anki, accounts, authentication, cloud sync, persistence, game launching, or non-Ren'Py source.
 
 ## Manual acceptance test
 
@@ -48,7 +50,14 @@ The Reader renders normal light-DOM text with `lang="ja"`, so Yomitan can inspec
 24. Stop YomiRelay while the game is running and confirm gameplay continues without waiting for the relay.
 25. Restart YomiRelay, advance dialogue, and confirm reception resumes; confirm Clear History affects only the selected game.
 26. Stop the game, click Remove Hook, and confirm only the managed hook is removed; confirm an unmanaged hook is never deleted.
+27. Confirm the Reader starts with `Enable English translation` off and no Codex process is started.
+28. Click `Enable English translation` and confirm existing history is translated progressively without hiding Japanese text.
+29. Advance the game and confirm each new Japanese line appears before its English translation finishes.
+30. Hover or keyboard-focus a glossed Japanese word and confirm kana plus its English meaning appear.
+31. Confirm the full English sentence appears below the Japanese sentence.
+32. Click `Disable translation` and confirm translations/tooltips hide while Japanese dialogue continues.
+33. Remove `codex` from `PATH` or use an unauthenticated CLI, enable translation, and confirm the button returns to off with no translation error while dialogue continues.
 
 ## Build details
 
-`./build.sh` installs frontend dependencies when needed, builds the Octane/Vite client, runs `go test ./...`, and writes `dist/yomirelay`. The frontend uses relative `/api/...` requests and one shared `/api/events` stream. No persistence or remote binding is included.
+`./build.sh` installs frontend dependencies when needed, builds the Octane/Vite client, runs `go test ./...`, and writes `dist/yomirelay`. The frontend uses relative `/api/...` requests and one shared `/api/events` stream. Translation is not required for startup; it invokes `codex exec` only after the Reader button is enabled. No persistence or remote binding is included.
