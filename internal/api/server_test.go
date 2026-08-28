@@ -2,6 +2,7 @@ package api
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"io"
 	"log"
@@ -18,6 +19,7 @@ import (
 	"yomirelay/internal/events"
 	"yomirelay/internal/games"
 	"yomirelay/internal/hook"
+	"yomirelay/internal/translation"
 )
 
 type fakeGames struct {
@@ -46,6 +48,7 @@ func (f *fakeGames) List() []games.Game {
 type testAPI struct {
 	handler http.Handler
 	game    games.Game
+	games   *fakeGames
 	store   *dialogue.Store
 	broker  *events.Broker
 }
@@ -63,7 +66,96 @@ func newTestAPI(t *testing.T) testAPI {
 	fake := &fakeGames{games: map[string]games.Game{"111": game}}
 	store := dialogue.NewStore(1000, time.Now)
 	broker := events.NewBroker(4)
-	return testAPI{handler: New(Dependencies{Games: fake, Hooks: hook.Manager{}, Store: store, Broker: broker, Logger: log.New(io.Discard, "", 0)}), game: game, store: store, broker: broker}
+	return testAPI{handler: New(Dependencies{Games: fake, Hooks: hook.Manager{}, Store: store, Broker: broker, Logger: log.New(io.Discard, "", 0)}), game: game, games: fake, store: store, broker: broker}
+}
+
+func newTestAPIWithTranslator(t *testing.T, translator translation.TranslateFunc) testAPI {
+	t.Helper()
+	api := newTestAPI(t)
+	api.handler = New(Dependencies{
+		Games:      api.games,
+		Hooks:      hook.Manager{},
+		Store:      api.store,
+		Broker:     api.broker,
+		Translator: translator,
+		Logger:     log.New(io.Discard, "", 0),
+	})
+	return api
+}
+
+func TestTranslateReturnsInjectedResult(t *testing.T) {
+	api := newTestAPIWithTranslator(t, func(_ context.Context, gameID, text string) (translation.Result, error) {
+		if gameID != "111" || text != "日本語。" {
+			t.Fatalf("translator input = %q, %q", gameID, text)
+		}
+		return translation.Result{
+			Translation: "Japanese.",
+			Segments: []translation.Segment{
+				{Text: "日本語", Kana: "にほんご", Meaning: "Japanese"},
+				{Text: "。"},
+			},
+		}, nil
+	})
+	request := httptest.NewRequest(http.MethodPost, "/api/translate", strings.NewReader(`{"gameId":"111","text":"日本語。"}`))
+	request.Header.Set("Content-Type", "application/json")
+	response := httptest.NewRecorder()
+
+	api.handler.ServeHTTP(response, request)
+	if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), `"translation":"Japanese."`) {
+		t.Fatalf("response = %d %s", response.Code, response.Body)
+	}
+}
+
+func TestTranslateRejectsInvalidAndUnknownRequests(t *testing.T) {
+	api := newTestAPIWithTranslator(t, func(context.Context, string, string) (translation.Result, error) {
+		t.Fatal("translator should not be called")
+		return translation.Result{}, nil
+	})
+	cases := []struct {
+		body string
+		want int
+	}{
+		{`{"gameId":"bad","text":"日本語。"}`, http.StatusBadRequest},
+		{`{"gameId":"999","text":"日本語。"}`, http.StatusNotFound},
+		{`{"gameId":"111","text":"   "}`, http.StatusBadRequest},
+		{`{"gameId":"111","text":"` + strings.Repeat("日", translation.MaxTextBytes+1) + `"}`, http.StatusBadRequest},
+	}
+	for _, test := range cases {
+		response := httptest.NewRecorder()
+		api.handler.ServeHTTP(response, httptest.NewRequest(http.MethodPost, "/api/translate", strings.NewReader(test.body)))
+		if response.Code != test.want {
+			t.Errorf("body %q status = %d, want %d", test.body, response.Code, test.want)
+		}
+	}
+}
+
+func TestTranslateMapsUnavailableTo503(t *testing.T) {
+	api := newTestAPIWithTranslator(t, func(context.Context, string, string) (translation.Result, error) {
+		return translation.Result{}, translation.ErrUnavailable
+	})
+	response := httptest.NewRecorder()
+	api.handler.ServeHTTP(response, httptest.NewRequest(http.MethodPost, "/api/translate", strings.NewReader(`{"gameId":"111","text":"日本語。"}`)))
+	if response.Code != http.StatusServiceUnavailable || !strings.Contains(response.Body.String(), `"code":"TRANSLATION_UNAVAILABLE"`) {
+		t.Fatalf("response = %d %s", response.Code, response.Body)
+	}
+}
+
+func TestTranslatePassesRequestCancellation(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	api := newTestAPIWithTranslator(t, func(ctx context.Context, _ string, _ string) (translation.Result, error) {
+		if ctx.Err() == nil {
+			t.Fatal("translator context was not cancelled")
+		}
+		return translation.Result{}, ctx.Err()
+	})
+	request := httptest.NewRequest(http.MethodPost, "/api/translate", strings.NewReader(`{"gameId":"111","text":"日本語。"}`)).WithContext(ctx)
+	cancel()
+	response := httptest.NewRecorder()
+
+	api.handler.ServeHTTP(response, request)
+	if response.Code != http.StatusServiceUnavailable {
+		t.Fatalf("response status = %d", response.Code)
+	}
 }
 
 func TestGamesReturnsDetectedGamesAndRefreshes(t *testing.T) {

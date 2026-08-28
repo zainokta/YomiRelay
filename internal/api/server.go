@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"strings"
@@ -12,6 +13,7 @@ import (
 	"yomirelay/internal/events"
 	"yomirelay/internal/games"
 	"yomirelay/internal/hook"
+	"yomirelay/internal/translation"
 )
 
 type Games interface {
@@ -26,11 +28,12 @@ type Hooks interface {
 }
 
 type Dependencies struct {
-	Games  Games
-	Hooks  Hooks
-	Store  *dialogue.Store
-	Broker *events.Broker
-	Logger *log.Logger
+	Games      Games
+	Hooks      Hooks
+	Store      *dialogue.Store
+	Broker     *events.Broker
+	Translator translation.TranslateFunc
+	Logger     *log.Logger
 }
 
 type server struct {
@@ -59,9 +62,60 @@ func (s server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		s.dialogues(w, r)
 	case "/events":
 		s.events(w, r)
+	case "/translate":
+		s.translate(w, r)
 	default:
 		s.hook(w, r, path)
 	}
+}
+
+const maxTranslationRequestBytes = 16 * 1024
+
+type translateRequest struct {
+	GameID string `json:"gameId"`
+	Text   string `json:"text"`
+}
+
+func (s server) translate(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeError(w, http.StatusMethodNotAllowed, "METHOD_NOT_ALLOWED", "method is not allowed")
+		return
+	}
+	if s.deps.Translator == nil {
+		writeError(w, http.StatusServiceUnavailable, "TRANSLATION_UNAVAILABLE", "translation is unavailable")
+		return
+	}
+	decoder := json.NewDecoder(io.LimitReader(r.Body, maxTranslationRequestBytes+1))
+	decoder.DisallowUnknownFields()
+	var input translateRequest
+	if err := decoder.Decode(&input); err != nil {
+		writeError(w, http.StatusBadRequest, "INVALID_TRANSLATION_REQUEST", "request body is invalid")
+		return
+	}
+	var extra any
+	if err := decoder.Decode(&extra); err != io.EOF {
+		writeError(w, http.StatusBadRequest, "INVALID_TRANSLATION_REQUEST", "request body contains trailing data")
+		return
+	}
+	if !validAppID(input.GameID) {
+		writeError(w, http.StatusBadRequest, "INVALID_GAME_ID", "gameId must contain only decimal digits")
+		return
+	}
+	if _, ok := s.deps.Games.Get(input.GameID); !ok {
+		writeError(w, http.StatusNotFound, "GAME_NOT_FOUND", "game was not found")
+		return
+	}
+	if strings.TrimSpace(input.Text) == "" || len([]byte(input.Text)) > translation.MaxTextBytes {
+		writeError(w, http.StatusBadRequest, "INVALID_TRANSLATION_REQUEST", "text is empty or too large")
+		return
+	}
+	result, err := s.deps.Translator(r.Context(), input.GameID, input.Text)
+	if err != nil {
+		s.deps.Logger.Printf("api: translation unavailable: %v", err)
+		writeError(w, http.StatusServiceUnavailable, "TRANSLATION_UNAVAILABLE", "translation is unavailable")
+		return
+	}
+	writeJSON(w, http.StatusOK, result)
 }
 
 func (s server) games(w http.ResponseWriter, r *http.Request) {
