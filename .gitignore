@@ -1,0 +1,6 @@
+codedb.snapshot
+dist/
+frontend/node_modules/
+frontend/dist/
+internal/web/static/*
+!internal/web/static/index.html
