@@ -2,6 +2,7 @@ import { useEffect, useState } from "octane";
 import { clearDialogues, listDialogues, listGames, type Dialogue, type Game } from "../api/client";
 import type { createDialogueStream } from "../api/events";
 import { DialogueList } from "./DialogueList.tsrx";
+import { mergeDialogueHistory } from "./history";
 
 type DialogueStream = ReturnType<typeof createDialogueStream>;
 
@@ -18,10 +19,23 @@ export function ReaderPage(props: { gameId: string; stream: DialogueStream; onSe
   useEffect(() => {
     if (!props.gameId) { setItems([]); return; }
     let current = true;
+    let historyLoaded = false;
+    const buffered: Dialogue[] = [];
     setError("");
-    void listDialogues(props.gameId).then((value) => { if (current) setItems(value); }).catch((reason) => { if (current) setError(reason instanceof Error ? reason.message : "Could not load dialogue."); });
     const unsubscribe = props.stream.subscribe((value) => {
-      if (value.gameId === props.gameId) setItems((previous) => [...previous, value]);
+      if (value.gameId !== props.gameId) return;
+      if (!historyLoaded) buffered.push(value);
+      else setItems((previous) => [...previous, value]);
+    });
+    void listDialogues(props.gameId).then((value) => {
+      if (!current) return;
+      historyLoaded = true;
+      setItems(mergeDialogueHistory(value, buffered));
+    }).catch((reason) => {
+      if (!current) return;
+      historyLoaded = true;
+      setItems(buffered);
+      setError(reason instanceof Error ? reason.message : "Could not load dialogue.");
     });
     return () => { current = false; unsubscribe(); };
   }, [props.gameId, props.stream]);
