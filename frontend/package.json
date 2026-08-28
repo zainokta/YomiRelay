@@ -1,0 +1,11 @@
+{
+  "private": true,
+  "engines": { "node": ">=22.22.2" },
+  "scripts": { "dev": "vite", "build": "vite build", "typecheck": "tsc --noEmit" },
+  "dependencies": { "octane": "0.1.48" },
+  "devDependencies": {
+    "@octanejs/vite-plugin": "0.1.48",
+    "typescript": "5.9.3",
+    "vite": "8.2.2"
+  }
+}

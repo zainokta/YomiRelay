@@ -1,0 +1,59 @@
+:root {
+  color: #20242a;
+  background: #f3f5f7;
+  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  line-height: 1.45;
+}
+* { box-sizing: border-box; }
+body { margin: 0; min-width: 320px; }
+button, select { border: 1px solid #aab4c0; border-radius: 0.45rem; background: #fff; color: inherit; font: inherit; padding: 0.55rem 0.8rem; cursor: pointer; }
+button:hover { border-color: #4169e1; }
+button:focus-visible, select:focus-visible { outline: 3px solid #f2a900; outline-offset: 2px; }
+button:disabled { cursor: not-allowed; opacity: 0.55; }
+.app-shell { max-width: 1100px; margin: 0 auto; padding: 1rem; }
+.app-header, .section-heading, .card-heading { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+.app-header { border-bottom: 1px solid #cfd6de; margin-bottom: 1rem; }
+.app-header h1, h2, h3, p { margin-top: 0; }
+h1 { margin-bottom: 1rem; }
+h2 { margin-bottom: 0.25rem; }
+h3 { margin-bottom: 0.2rem; }
+nav { display: flex; gap: 0.4rem; }
+nav button.selected { background: #1d4ed8; border-color: #1d4ed8; color: white; }
+.eyebrow { color: #53677e; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.12em; margin-bottom: 0.25rem; }
+.panel { background: #fff; border: 1px solid #d3dbe4; border-radius: 0.75rem; padding: 1rem; box-shadow: 0 2px 9px #15223812; }
+.primary { background: #1d4ed8; border-color: #1d4ed8; color: #fff; }
+.game-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); gap: 0.8rem; list-style: none; margin: 1rem 0 0; padding: 0; }
+.game-card { border: 1px solid #d3dbe4; border-radius: 0.6rem; padding: 0.9rem; height: 100%; }
+.app-id, .status, .path { color: #53677e; font-size: 0.88rem; }
+.badge { border-radius: 999px; background: #e7ebef; font-size: 0.78rem; padding: 0.25rem 0.5rem; white-space: nowrap; }
+.badge.active { background: #d4f4df; color: #176334; }
+.game-details { display: grid; gap: 0.35rem; margin: 1rem 0; }
+.game-details div { display: grid; grid-template-columns: 5.7rem 1fr; gap: 0.5rem; }
+dt { color: #53677e; font-size: 0.82rem; } dd { margin: 0; overflow-wrap: anywhere; }
+.card-actions, .reader-controls { display: flex; flex-wrap: wrap; gap: 0.45rem; align-items: center; }
+.notice { background: #e4f1ff; border-left: 3px solid #1d4ed8; padding: 0.5rem; }
+.error { color: #9f1c1c; background: #fff0f0; border-left: 3px solid #c62828; padding: 0.5rem; }
+.reader-panel { min-height: 65vh; }
+.reader-controls label { display: flex; align-items: center; gap: 0.35rem; }
+.reader-list-wrap { position: relative; }
+.reader-list { border: 1px solid #d3dbe4; border-radius: 0.5rem; height: 55vh; overflow-y: auto; padding: 0.75rem; }
+.dialogue { border-bottom: 1px solid #e2e7ec; padding: 0.7rem 0.35rem; user-select: text; }
+.dialogue:last-child { border-bottom: 0; }
+.speaker { color: #1d4ed8; font-weight: 700; margin-bottom: 0.25rem; }
+.dialogue-text { font-size: 1.12rem; overflow-wrap: anywhere; }
+.dialogue time { color: #65758a; display: block; font-size: 0.72rem; margin-top: 0.3rem; }
+.jump { bottom: 1rem; position: absolute; right: 1rem; }
+.hidden-jump { margin-top: 0.75rem; }
+@media (prefers-color-scheme: dark) {
+  :root { color: #edf2f7; background: #111827; }
+  button, select, .panel { background: #1d2735; color: inherit; border-color: #46576b; }
+  .panel, .game-card { border-color: #46576b; box-shadow: none; }
+  .app-header { border-color: #46576b; }
+  .app-id, .status, .path, dt, .eyebrow { color: #aebdd0; }
+  .reader-list { border-color: #46576b; }
+  .dialogue { border-color: #334256; }
+  .notice { background: #172d4e; }
+  .error { background: #421d25; color: #ffb7bd; }
+  .badge { background: #334256; }
+  .badge.active { background: #194d32; color: #a8f0bf; }
+}
