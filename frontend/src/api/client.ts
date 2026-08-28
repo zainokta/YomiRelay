@@ -9,11 +9,22 @@ export type Game = {
 };
 
 export type Dialogue = {
-  gameId: string;
-  gameName: string;
+	gameId: string;
+	gameName: string;
   speaker?: string;
   text: string;
-  timestamp: string;
+	timestamp: string;
+};
+
+export type TranslationSegment = {
+	text: string;
+	kana: string;
+	meaning: string;
+};
+
+export type Translation = {
+	translation: string;
+	segments: TranslationSegment[];
 };
 
 type ErrorEnvelope = { error?: { code?: string; message?: string } };
@@ -45,5 +56,14 @@ export function listDialogues(gameID: string): Promise<Dialogue[]> {
 }
 
 export function clearDialogues(gameID: string): Promise<void> {
-  return request<void>(`/api/dialogues?gameId=${encodeURIComponent(gameID)}`, { method: "DELETE" });
+	return request<void>(`/api/dialogues?gameId=${encodeURIComponent(gameID)}`, { method: "DELETE" });
+}
+
+export function translateDialogue(gameID: string, text: string, signal?: AbortSignal): Promise<Translation> {
+	return request<Translation>("/api/translate", {
+		method: "POST",
+		headers: { "Content-Type": "application/json" },
+		body: JSON.stringify({ gameId: gameID, text }),
+		signal,
+	});
 }

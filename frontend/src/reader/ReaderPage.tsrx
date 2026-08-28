@@ -56,6 +56,6 @@ export function ReaderPage(props: { gameId: string; stream: DialogueStream; onSe
       </div>
     </div>
     {error && <p class="error" role="alert">{error}</p>}
-    {!props.gameId ? <p class="status">Choose a detected game to read its dialogue.</p> : <DialogueList items={items} />}
+    {!props.gameId ? <p class="status">Choose a detected game to read its dialogue.</p> : <DialogueList items={items} translations={{}} />}
   </section>;
 }
