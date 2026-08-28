@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "octane";
 import type { Dialogue } from "../api/client";
 import { DialogueLine } from "./DialogueLine.tsrx";
 
-export function DialogueList(props: { items: Dialogue[]; jumpToken: number }) {
+export function DialogueList(props: { items: Dialogue[] }) {
   const container = useRef<HTMLDivElement | null>(null);
   const [nearBottom, setNearBottom] = useState(true);
 
@@ -16,14 +16,6 @@ export function DialogueList(props: { items: Dialogue[]; jumpToken: number }) {
     if (!element) return;
     if (nearBottom) element.scrollTo({ top: element.scrollHeight, behavior: "auto" });
   }, [props.items.length]);
-  useEffect(() => {
-    if (props.jumpToken === 0) return;
-    const element = container.current;
-    if (!element) return;
-    element.scrollTo({ top: element.scrollHeight, behavior: "auto" });
-    setNearBottom(true);
-  }, [props.jumpToken]);
-
   return <div class="reader-list-wrap">
     <div class="reader-list" ref={container} onScroll={updatePosition}>
       {props.items.map((dialogue, index) => <DialogueLine key={`${dialogue.timestamp}-${index}`} dialogue={dialogue} />)}

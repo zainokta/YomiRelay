@@ -43,6 +43,26 @@ func TestDiscoverIncludesManifestsFromEveryLibrary(t *testing.T) {
 	}
 }
 
+func TestDiscoverRejectsTraversalInstallDir(t *testing.T) {
+	root := t.TempDir()
+	outside := filepath.Join(root, "outside")
+	if err := os.MkdirAll(filepath.Join(root, "steamapps", "common"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(outside, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeManifest(t, filepath.Join(root, "steamapps", "appmanifest_333.acf"), "333", "Escape", "../../outside")
+
+	got, err := Discover([]string{root})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 0 {
+		t.Fatalf("got external installation record: %#v", got)
+	}
+}
+
 func TestDiscoverSkipsMalformedManifestAndKeepsOtherGames(t *testing.T) {
 	root := t.TempDir()
 	steamapps := filepath.Join(root, "steamapps")

@@ -8,7 +8,7 @@ YomiRelay is a local Ren'Py dialogue relay: it sends installed Ren'Py Steam-game
 - Node.js 22.22.2 or newer, npm
 - Linux, Windows, or macOS
 
-For development, run `./dev.sh`, then open **http://127.0.0.1:17321**. For a production binary, run `./build.sh`, then `./dist/yomirelay` and open the same URL. The frontend uses Vite only during development/build; the binary embeds its static assets and needs no Node.js at runtime.
+For development, run `./dev.sh`, then open **http://127.0.0.1:5173**. For a production binary, run `./build.sh`, then `./dist/yomirelay` and open **http://127.0.0.1:17321**. The frontend uses Vite only during development/build; the binary embeds its static assets and needs no Node.js at runtime.
 
 The backend defaults to HTTP `127.0.0.1:17321` and loopback UDP `127.0.0.1:17322`. `YOMIRELAY_HTTP_ADDR` and `YOMIRELAY_UDP_ADDR` may override these addresses, but they must remain loopback addresses.
 
@@ -26,7 +26,7 @@ The Reader renders normal light-DOM text with `lang="ja"`, so Yomitan can inspec
 2. Clone the repository and change into its directory.
 3. Run `./dev.sh`.
 4. Confirm the backend and Vite startup labels are printed.
-5. Open `http://127.0.0.1:17321` in a browser.
+5. Open `http://127.0.0.1:5173` in a browser (development frontend; production uses `http://127.0.0.1:17321`).
 6. Confirm the YomiRelay Games page loads as normal HTML.
 7. Confirm the page is reachable only on the configured local address.
 8. Confirm Steam roots and configured libraries are discovered without a whole-disk scan.

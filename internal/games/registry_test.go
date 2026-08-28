@@ -39,6 +39,35 @@ func TestRegistryRefreshListsOnlyDetectedGames(t *testing.T) {
 	}
 }
 
+func TestRegistryDecoratesActivityWhenReturningGames(t *testing.T) {
+	root := t.TempDir()
+	if err := makeRenPyFixture(root); err != nil {
+		t.Fatal(err)
+	}
+	lastSeen := time.Date(2026, time.January, 1, 12, 0, 0, 0, time.UTC)
+	active := true
+	known := true
+	registry := NewRegistry(func() ([]steam.Installation, error) {
+		return []steam.Installation{{AppID: "111", Name: "Detected", InstallPath: root}}, nil
+	}, nil, func(string) (time.Time, bool, bool) {
+		return lastSeen, active, known
+	})
+	if err := registry.Refresh(); err != nil {
+		t.Fatal(err)
+	}
+	active = false
+	lastSeen = lastSeen.Add(30 * time.Second)
+
+	listed := registry.List()
+	if len(listed) != 1 || listed[0].Active || listed[0].LastSeen == nil || !listed[0].LastSeen.Equal(lastSeen) {
+		t.Fatalf("listed activity = %#v", listed)
+	}
+	got, ok := registry.Get("111")
+	if !ok || got.Active || got.LastSeen == nil || !got.LastSeen.Equal(lastSeen) {
+		t.Fatalf("got activity = %#v, ok %v", got, ok)
+	}
+}
+
 func makeRenPyFixture(root string) error {
 	if err := makeGameFixture(root); err != nil {
 		return err

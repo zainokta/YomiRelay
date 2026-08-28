@@ -14,7 +14,7 @@ Use a small Go application based on the standard library for HTTP, UDP, Server-S
 
 Use `golang.org/x/sys/windows/registry` only in a Windows build-tagged Steam locator, since Go's standard library does not expose the Windows registry. This is the sole planned backend dependency.
 
-Use a pinned Octane/Vite TypeScript SPA. The initial pinned frontend versions are `octane@0.1.48`, `@octanejs/vite-plugin@0.1.48`, `vite@8.2.2`, and `typescript@7.0.2`, verified as current npm releases on 2026-08-28. `package-lock.json` is committed. Before frontend code is written, the exact needed Octane lifecycle/list/event APIs will be verified in the current official documentation; no undocumented compiler behavior will be used.
+Use a pinned Octane/Vite TypeScript SPA. The initial pinned frontend versions are `octane@0.1.48`, `@octanejs/vite-plugin@0.1.48`, `vite@8.2.2`, and `typescript@5.9.3`. TypeScript 5.9.3 is explicitly approved because `octane@0.1.48` declares the compatible optional peer range `^5.9.3`; React and React DOM remain uninstalled optional peers. `package-lock.json` is committed. Before frontend code is written, the exact needed Octane lifecycle/list/event APIs will be verified in the current official documentation; no undocumented compiler behavior will be used.
 
 ## System architecture
 

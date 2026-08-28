@@ -1,6 +1,10 @@
 package steam
 
-import "fmt"
+import (
+	"fmt"
+	"path/filepath"
+	"strings"
+)
 
 // Value is either a quoted scalar or an object containing named values.
 type Value struct {
@@ -66,8 +70,26 @@ func ParseManifest(data []byte) (Manifest, error) {
 	if !ok || installDir == "" {
 		return Manifest{}, fmt.Errorf("app manifest: installdir missing or empty")
 	}
+	if !validInstallDir(installDir) {
+		return Manifest{}, fmt.Errorf("app manifest: installdir is unsafe")
+	}
 
 	return Manifest{AppID: appID, Name: name, InstallDir: installDir}, nil
+}
+
+func validInstallDir(value string) bool {
+	if value == "." || value == ".." || strings.ContainsAny(value, `/\\`) {
+		return false
+	}
+	if filepath.IsAbs(value) || filepath.VolumeName(value) != "" {
+		return false
+	}
+	// filepath.VolumeName follows the host OS; reject Windows drive prefixes
+	// even when discovery runs on Unix.
+	if len(value) >= 2 && value[1] == ':' {
+		return false
+	}
+	return filepath.Clean(value) == value
 }
 
 type tokenKind uint8

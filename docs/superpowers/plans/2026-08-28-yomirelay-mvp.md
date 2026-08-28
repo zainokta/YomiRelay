@@ -6,7 +6,7 @@
 
 **Architecture:** A Go backend discovers Steam libraries, detects Ren'Py layouts, writes one ownership-marked hook per selected game, validates loopback UDP packets, stores bounded normalized per-game history, and publishes SSE. A pinned Octane/Vite SPA uses only relative API URLs, renders selected dialogue as normal light-DOM text, and is embedded into the production binary through `embed.FS`.
 
-**Tech Stack:** Go standard library; `golang.org/x/sys/windows/registry` only in the Windows Steam locator; TypeScript; Octane `0.1.48`; `@octanejs/vite-plugin` `0.1.48`; Vite `8.2.2`; TypeScript `7.0.2`; npm.
+**Tech Stack:** Go standard library; `golang.org/x/sys/windows/registry` only in the Windows Steam locator; TypeScript; Octane `0.1.48`; `@octanejs/vite-plugin` `0.1.48`; Vite `8.2.2`; TypeScript `5.9.3`; npm. TypeScript 5.9.3 is explicitly approved because `octane@0.1.48` declares the compatible optional peer range `^5.9.3`; React and React DOM remain uninstalled optional peers.
 
 ## Global Constraints
 
@@ -894,7 +894,7 @@ Create `frontend/package.json` with exact versions and scripts:
   "dependencies": { "octane": "0.1.48" },
   "devDependencies": {
     "@octanejs/vite-plugin": "0.1.48",
-    "typescript": "7.0.2",
+    "typescript": "5.9.3",
     "vite": "8.2.2"
   }
 }

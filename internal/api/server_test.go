@@ -126,6 +126,18 @@ func TestDialoguesAreFilteredAndClearIsIsolated(t *testing.T) {
 	}
 }
 
+func TestDialoguesRejectUnknownDecimalGameIDs(t *testing.T) {
+	api := newTestAPI(t)
+	for _, method := range []string{http.MethodGet, http.MethodDelete} {
+		response := httptest.NewRecorder()
+		request := httptest.NewRequest(method, "/api/dialogues?gameId=999", nil)
+		api.handler.ServeHTTP(response, request)
+		if response.Code != http.StatusNotFound || !strings.Contains(response.Body.String(), `"code":"GAME_NOT_FOUND"`) {
+			t.Fatalf("%s response = %d %s", method, response.Code, response.Body)
+		}
+	}
+}
+
 func TestEventsStreamsDialogueToMultipleClients(t *testing.T) {
 	api := newTestAPI(t)
 	server := httptest.NewServer(api.handler)

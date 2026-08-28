@@ -116,6 +116,10 @@ func (s server) dialogues(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "INVALID_GAME_ID", "gameId must contain only decimal digits")
 		return
 	}
+	if _, ok := s.deps.Games.Get(gameID); !ok {
+		writeError(w, http.StatusNotFound, "GAME_NOT_FOUND", "game was not found")
+		return
+	}
 	if r.Method == http.MethodDelete {
 		s.deps.Store.Clear(gameID)
 		w.WriteHeader(http.StatusNoContent)

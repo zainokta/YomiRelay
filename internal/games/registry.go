@@ -52,14 +52,6 @@ func (r *Registry) Refresh() error {
 		if r.hooks != nil {
 			game.HookInstalled = r.hooks(game)
 		}
-		if r.activity != nil {
-			lastSeen, active, known := r.activity(game.AppID)
-			game.Active = active
-			if known && !lastSeen.IsZero() {
-				seen := lastSeen
-				game.LastSeen = &seen
-			}
-		}
 		next[game.AppID] = game
 	}
 	r.mu.Lock()
@@ -72,7 +64,10 @@ func (r *Registry) Get(appID string) (Game, bool) {
 	r.mu.RLock()
 	game, ok := r.games[appID]
 	r.mu.RUnlock()
-	return game, ok
+	if !ok {
+		return Game{}, false
+	}
+	return r.withActivity(game), true
 }
 
 func (r *Registry) List() []Game {
@@ -82,6 +77,9 @@ func (r *Registry) List() []Game {
 		games = append(games, game)
 	}
 	r.mu.RUnlock()
+	for i := range games {
+		games[i] = r.withActivity(games[i])
+	}
 	sort.Slice(games, func(i, j int) bool {
 		left, right := strings.ToLower(games[i].Name), strings.ToLower(games[j].Name)
 		if left != right {
@@ -90,4 +88,18 @@ func (r *Registry) List() []Game {
 		return games[i].AppID < games[j].AppID
 	})
 	return games
+}
+
+func (r *Registry) withActivity(game Game) Game {
+	if r.activity == nil {
+		return game
+	}
+	lastSeen, active, known := r.activity(game.AppID)
+	game.Active = active
+	game.LastSeen = nil
+	if known && !lastSeen.IsZero() {
+		seen := lastSeen
+		game.LastSeen = &seen
+	}
+	return game
 }

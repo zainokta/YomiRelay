@@ -80,6 +80,6 @@ func Render(appID, gameName string) ([]byte, error) {
 	}
 	// JSON permits UTF-8, but ASCII escapes keep the generated source valid for
 	// Python 2 runtimes, which do not assume an encoding for source files.
-	nameLiteral := strconv.QuoteToASCII(gameName)
+	nameLiteral := "u" + strconv.QuoteToASCII(gameName)
 	return []byte(hookPrefix + fmt.Sprintf(hookBody, id, nameLiteral)), nil
 }

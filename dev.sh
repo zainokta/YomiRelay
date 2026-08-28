@@ -52,6 +52,7 @@ printf '[frontend] starting Vite server\n'
 ( cd "$ROOT_DIR/frontend" && exec npm run dev ) &
 FRONTEND_PID=$!
 printf 'YomiRelay development processes started.\n'
+printf 'Development frontend: http://127.0.0.1:5173\n'
 set +e
 wait -n "$BACKEND_PID" "$FRONTEND_PID"
 STATUS=$?

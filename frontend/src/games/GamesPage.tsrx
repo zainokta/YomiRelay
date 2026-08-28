@@ -29,7 +29,7 @@ export function GamesPage(props: { openReader: (gameId: string) => void }) {
     {loading && games.length === 0 && <p class="status">Looking for Steam libraries…</p>}
     {!loading && games.length === 0 && <p class="status">No Ren'Py games were detected.</p>}
     <ul class="game-list">
-      {games.map((game) => <li key={game.appId}><GameCard game={game} openReader={props.openReader} /></li>)}
+      {games.map((game) => <li key={game.appId}><GameCard game={game} openReader={props.openReader} onChanged={() => load(false)} /></li>)}
     </ul>
   </section>;
 }

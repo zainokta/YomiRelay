@@ -9,7 +9,6 @@ export function ReaderPage(props: { gameId: string; stream: DialogueStream; onSe
   const [games, setGames] = useState<Game[]>([]);
   const [items, setItems] = useState<Dialogue[]>([]);
   const [error, setError] = useState("");
-  const [jumpToken, setJumpToken] = useState(0);
 
   useEffect(() => {
     let current = true;
@@ -43,7 +42,6 @@ export function ReaderPage(props: { gameId: string; stream: DialogueStream; onSe
       </div>
     </div>
     {error && <p class="error" role="alert">{error}</p>}
-    {!props.gameId ? <p class="status">Choose a detected game to read its dialogue.</p> : <DialogueList items={items} jumpToken={jumpToken} />}
-    <button class="hidden-jump" onClick={() => setJumpToken((value) => value + 1)} aria-label="Jump to latest">Jump to latest</button>
+    {!props.gameId ? <p class="status">Choose a detected game to read its dialogue.</p> : <DialogueList items={items} />}
   </section>;
 }
