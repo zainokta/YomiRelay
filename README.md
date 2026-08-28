@@ -8,7 +8,7 @@ YomiRelay is a local Ren'Py dialogue relay: it sends installed Ren'Py Steam-game
 - Node.js 22.22.2 or newer, npm
 - Linux, Windows, or macOS
 
-For development, run `./dev.sh`, then open **http://127.0.0.1:5173**. For a production binary, run `./build.sh`, then `./dist/yomirelay` and open **http://127.0.0.1:17321**. The frontend uses Vite only during development/build; the binary embeds its static assets and needs no Node.js at runtime.
+For development, run `./run.sh`, then open **http://127.0.0.1:5173**. For a production binary, run `./build.sh`, then `./dist/yomirelay` and open **http://127.0.0.1:17321**. The frontend uses Vite only during development/build; the binary embeds its static assets and needs no Node.js at runtime.
 
 Translation is optional. Install the Codex CLI, sign in with your ChatGPT account, and make `codex` available on `PATH` if you want English translations. YomiRelay does not check this at startup; the Reader starts in Japanese-only mode. If the CLI is missing or not authenticated, enabling translation simply returns the Reader to Japanese-only mode. See the [Codex CLI guide](https://learn.chatgpt.com/docs/codex/cli) for setup.
 
@@ -26,7 +26,7 @@ The Reader renders normal light-DOM text with `lang="ja"`, so Yomitan can inspec
 
 1. Install Go, Node.js 22.22.2 or newer, and npm.
 2. Clone the repository and change into its directory.
-3. Run `./dev.sh`.
+3. Run `./run.sh`.
 4. Confirm the backend and Vite startup labels are printed.
 5. Open `http://127.0.0.1:5173` in a browser (development frontend; production uses `http://127.0.0.1:17321`).
 6. Confirm the YomiRelay Games page loads as normal HTML.
