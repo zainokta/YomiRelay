@@ -18,6 +18,7 @@ export function ReaderPage(props: { gameId: string; stream: DialogueStream; onSe
   const queueRef = useRef<Dialogue[]>([]);
   const queuedKeysRef = useRef(new Set<string>());
   const activeKeyRef = useRef("");
+  const failedKeysRef = useRef(new Set<string>());
   const processingRef = useRef(false);
   const enabledRef = useRef(false);
   const generationRef = useRef(0);
@@ -28,6 +29,7 @@ export function ReaderPage(props: { gameId: string; stream: DialogueStream; onSe
     abortRef.current?.abort();
     abortRef.current = null;
     activeKeyRef.current = "";
+    failedKeysRef.current.clear();
     queueRef.current = [];
     queuedKeysRef.current.clear();
   };
@@ -50,22 +52,22 @@ export function ReaderPage(props: { gameId: string; stream: DialogueStream; onSe
     processingRef.current = true;
     setTranslating(true);
     const generation = generationRef.current;
+    const current = () => enabledRef.current && generation === generationRef.current;
     try {
-      while (enabledRef.current && generation === generationRef.current && queueRef.current.length > 0) {
+      while (current() && queueRef.current.length > 0) {
         const dialogue = queueRef.current.shift()!;
         const key = translationKey(dialogue);
         queuedKeysRef.current.delete(key);
-        if (translationsRef.current[key]) continue;
+        if (translationsRef.current[key] || failedKeysRef.current.has(key)) continue;
         activeKeyRef.current = key;
         const controller = new AbortController();
         abortRef.current = controller;
         try {
           const result = await translateDialogue(dialogue.gameId, dialogue.text, controller.signal);
-          if (!enabledRef.current || generation !== generationRef.current) break;
+          if (!current()) break;
           rememberTranslation(key, result);
         } catch {
-          if (enabledRef.current && generation === generationRef.current) disableTranslation();
-          break;
+          if (current()) failedKeysRef.current.add(key);
         } finally {
           if (activeKeyRef.current === key) activeKeyRef.current = "";
           if (abortRef.current === controller) abortRef.current = null;
@@ -81,7 +83,7 @@ export function ReaderPage(props: { gameId: string; stream: DialogueStream; onSe
     if (!enabledRef.current) return;
     for (const dialogue of values) {
       const key = translationKey(dialogue);
-      if (translationsRef.current[key] || key === activeKeyRef.current || queuedKeysRef.current.has(key)) continue;
+      if (translationsRef.current[key] || key === activeKeyRef.current || failedKeysRef.current.has(key) || queuedKeysRef.current.has(key)) continue;
       queuedKeysRef.current.add(key);
       queueRef.current.push(dialogue);
     }
