@@ -15,20 +15,29 @@ type HookPoint struct {
 	RVA        uint32
 }
 
-// This instruction shape comes from the AQUARIUM NeXAS text path. Relative
-// call and object-field displacements are intentionally wildcarded so the
-// matcher describes instructions rather than absolute addresses.
+// This instruction shape comes from the AQUARIUM NeXAS2 text path used by the
+// verified Steam build. Only the relative call displacement is wildcarded.
+//
+// In particular, the verified instruction is:
+//
+//   push eax
+//   call rel32
+//   mov eax,[esi+000000A4]
+//   mov eax,[eax-04]
+//
+// Keeping the +0xA4 object-field displacement exact is important: a looser
+// matcher produced two valid-looking hits in the real Proton process.
 var hookPattern = []byte{
 	0x50,
 	0xe8, 0, 0, 0, 0,
-	0x8b, 0x86, 0, 0, 0, 0,
+	0x8b, 0x86, 0xa4, 0x00, 0x00, 0x00,
 	0x8b, 0x40, 0xfc,
 }
 
 var hookMask = []byte{
 	0xff,
 	0xff, 0, 0, 0, 0,
-	0xff, 0xff, 0, 0, 0, 0,
+	0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
 	0xff, 0xff, 0xff,
 }
 

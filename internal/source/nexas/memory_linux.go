@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -60,7 +61,16 @@ func resolveRuntimeHook(pid int, imageBase uint64, imageSize uint32, pattern, ma
 		return 0, errRuntimeHookNotFound
 	}
 	if len(hits) != 1 {
-		return 0, fmt.Errorf("NeXAS runtime hook signature is ambiguous: %d matches", len(hits))
+		addresses := make([]uint64, 0, len(hits))
+		for address := range hits {
+			addresses = append(addresses, address)
+		}
+		sort.Slice(addresses, func(i, j int) bool { return addresses[i] < addresses[j] })
+		parts := make([]string, 0, len(addresses))
+		for _, address := range addresses {
+			parts = append(parts, fmt.Sprintf("rva=0x%x", address-imageBase))
+		}
+		return 0, fmt.Errorf("NeXAS runtime hook signature is ambiguous: %d matches (%s)", len(addresses), strings.Join(parts, ", "))
 	}
 	for address := range hits {
 		return address, nil

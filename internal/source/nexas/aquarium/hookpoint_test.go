@@ -19,6 +19,19 @@ func TestFindHookReturnsUniqueExecutablePattern(t *testing.T) {
 	}
 }
 
+func TestHookSignatureKeepsAquariumObjectOffsetExact(t *testing.T) {
+	pattern, mask := HookSignature()
+	if len(pattern) < 12 || len(mask) != len(pattern) {
+		t.Fatalf("invalid signature lengths: pattern=%d mask=%d", len(pattern), len(mask))
+	}
+	want := []byte{0xa4, 0x00, 0x00, 0x00}
+	for i := range want {
+		if pattern[8+i] != want[i] || mask[8+i] != 0xff {
+			t.Fatalf("object displacement is not exact: pattern=% x mask=% x", pattern, mask)
+		}
+	}
+}
+
 func TestFindHookRejectsMissingOrAmbiguousPattern(t *testing.T) {
 	for _, tc := range []struct {
 		name      string

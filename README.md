@@ -103,6 +103,8 @@ For the currently verified AQUARIUM Steam build, YomiRelay:
 
 The runtime signature scan in step 4 is an **attachment-time operation only**. It is not the old dialogue memory scanner and it does not poll game text. Once the instruction address resolves, dialogue capture is event-driven through the execution breakpoint.
 
+The AQUARIUM profile deliberately uses a build-specific instruction signature. For the verified Steam build, the expected sequence includes `mov eax,[esi+0xA4]`; only the relative `call` displacement is wildcarded. A previous broader matcher wildcarded the object-field displacement as well and produced two runtime matches under Proton, so the matcher now keeps `0xA4` exact instead of guessing between candidates.
+
 The hook does not patch `Aquarium.exe`, inject a DLL, modify game files, or continuously scan process memory for dialogue. Hardware breakpoint file descriptors are owned by the YomiRelay process and disappear when YomiRelay exits.
 
 If the executable hash changes, the runtime signature resolves ambiguously, or kernel perf policy blocks the observer, YomiRelay fails closed and leaves the game untouched.
@@ -140,6 +142,14 @@ After the signature becomes available:
 [nexas] resolved runtime hook: game=AQUARIUM pid=... rva=... address=...
 [nexas] attached execution hook: game=AQUARIUM pid=... address=...
 ```
+
+If a runtime signature is still ambiguous, the error now includes every candidate RVA, for example:
+
+```text
+NeXAS runtime hook signature is ambiguous: 2 matches (rva=0x..., rva=0x...)
+```
+
+Do not pick one candidate arbitrarily. Send those RVAs with the `[nexas]` logs so the build-specific signature can be refined safely.
 
 If the `waiting for ... runtime hook signature` message repeats every 10 seconds and never resolves, send the full `[nexas]` logs back for the next signature adjustment.
 
