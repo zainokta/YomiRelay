@@ -90,7 +90,7 @@ func TestRegistryDetectsAquariumAndRejectsOtherApps(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := registry.List()
-	if len(got) != 1 || got[0].Engine != "nexas" || got[0].EngineConfidence != "high" || got[0].DialogueSource != "native-memory-preview" || got[0].SourceStatus != "unsupported-build" || got[0].HookInstalled {
+	if len(got) != 1 || got[0].Engine != "nexas" || got[0].EngineConfidence != "high" || got[0].DialogueSource != "nexas-exec-hook" || got[0].SourceStatus != "unsupported-build" || got[0].HookInstalled {
 		t.Fatalf("games = %+v", got)
 	}
 }

@@ -25,8 +25,9 @@ export function GameCard(props: { game: Game; openReader: (gameId: string) => vo
     }
   };
 
-  const sourceLabel = props.game.sourceStatus === "experimental"
-    ? "Experimental native preview"
+  const managedRenPyHook = props.game.sourceStatus === "available";
+  const sourceLabel = props.game.sourceStatus === "native-auto"
+    ? "Live native hook (automatic)"
     : props.game.sourceStatus.startsWith("unsupported")
       ? "Unavailable"
       : props.game.hookInstalled
@@ -48,8 +49,8 @@ export function GameCard(props: { game: Game; openReader: (gameId: string) => vo
     {notice && <p class="notice" role="status">{notice}</p>}
     {error && <p class="error" role="alert">{error}</p>}
     <div class="card-actions">
-      <button class="primary" onClick={() => void changeHook(true)} disabled={busy || props.game.hookInstalled || props.game.sourceStatus !== "available"}>Install Hook</button>
-      <button onClick={() => void changeHook(false)} disabled={busy || !props.game.hookInstalled}>Remove Hook</button>
+      {managedRenPyHook && <button class="primary" onClick={() => void changeHook(true)} disabled={busy || props.game.hookInstalled}>Install Hook</button>}
+      {managedRenPyHook && <button onClick={() => void changeHook(false)} disabled={busy || !props.game.hookInstalled}>Remove Hook</button>}
       <button onClick={() => props.openReader(props.game.appId)}>Open Reader</button>
     </div>
   </article>;

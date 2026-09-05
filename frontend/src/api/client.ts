@@ -33,25 +33,6 @@ export type Translation = {
   segments: TranslationSegment[];
 };
 
-export type SourcePreviewCandidate = {
-  address: string;
-  speaker: string;
-  text: string;
-};
-
-export type SourcePreview = {
-  status: string;
-  message: string;
-  pid?: number;
-  build: {
-    architecture: string;
-    sha256: string;
-    verifiedBuild: boolean;
-  };
-  bytesRead: number;
-  candidates: SourcePreviewCandidate[];
-};
-
 type ErrorEnvelope = { error?: { code?: string; message?: string } };
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -91,8 +72,4 @@ export function translateDialogue(gameID: string, text: string, signal?: AbortSi
     body: JSON.stringify({ gameId: gameID, text }),
     signal,
   });
-}
-
-export function getSourcePreview(appID: string): Promise<SourcePreview> {
-  return request<SourcePreview>(`/api/games/${encodeURIComponent(appID)}/source-preview`);
 }

@@ -27,7 +27,7 @@ if [[ ! -d node_modules ]]; then
 fi
 
 mkdir -p "$ROOT_DIR/dist"
-printf '[native] building AQUARIUM preview helper\n'
+printf '[native] building AQUARIUM NeXAS hook helper\n'
 ( cd "$ROOT_DIR" && go build -o "$ROOT_DIR/dist/yomirelay-aquarium" ./cmd/yomirelay-aquarium )
 
 BACKEND_PID=""

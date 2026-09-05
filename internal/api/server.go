@@ -28,13 +28,12 @@ type Hooks interface {
 }
 
 type Dependencies struct {
-	InspectSource InspectSourceFunc
-	Games         Games
-	Hooks         Hooks
-	Store         *dialogue.Store
-	Broker        *events.Broker
-	Translator    translation.TranslateFunc
-	Logger        *log.Logger
+	Games      Games
+	Hooks      Hooks
+	Store      *dialogue.Store
+	Broker     *events.Broker
+	Translator translation.TranslateFunc
+	Logger     *log.Logger
 }
 
 type server struct {
@@ -135,10 +134,6 @@ func (s server) games(w http.ResponseWriter, r *http.Request) {
 
 func (s server) hook(w http.ResponseWriter, r *http.Request, path string) {
 	parts := strings.Split(strings.TrimPrefix(path, "/"), "/")
-	if len(parts) == 3 && parts[0] == "games" && parts[2] == "source-preview" && validAppID(parts[1]) {
-		s.sourcePreview(w, r, parts[1])
-		return
-	}
 	if len(parts) != 3 || parts[0] != "games" || parts[2] != "hook" || !validAppID(parts[1]) {
 		writeError(w, http.StatusNotFound, "NOT_FOUND", "route was not found")
 		return

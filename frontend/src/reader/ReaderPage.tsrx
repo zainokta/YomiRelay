@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "octane";
-import { clearDialogues, getSourcePreview, listDialogues, listGames, translateDialogue, type Dialogue, type Game, type SourcePreview, type Translation } from "../api/client";
+import { clearDialogues, listDialogues, listGames, translateDialogue, type Dialogue, type Game, type Translation } from "../api/client";
 import type { createDialogueStream } from "../api/events";
 import { DialogueList } from "./DialogueList.tsrx";
 import { mergeDialogueHistory } from "./history";
@@ -11,9 +11,6 @@ export function ReaderPage(props: { gameId: string; stream: DialogueStream; onSe
   const [games, setGames] = useState<Game[]>([]);
   const [items, setItems] = useState<Dialogue[]>([]);
   const [error, setError] = useState("");
-  const [sourcePreview, setSourcePreview] = useState<SourcePreview | null>(null);
-  const [sourceBusy, setSourceBusy] = useState(false);
-  const [sourceError, setSourceError] = useState("");
   const [translationEnabled, setTranslationEnabled] = useState(false);
   const [translating, setTranslating] = useState(false);
   const [translations, setTranslations] = useState<TranslationMap>({});
@@ -26,7 +23,6 @@ export function ReaderPage(props: { gameId: string; stream: DialogueStream; onSe
   const enabledRef = useRef(false);
   const generationRef = useRef(0);
   const abortRef = useRef<AbortController | null>(null);
-  const sourceGenerationRef = useRef(0);
 
   const stopPending = () => {
     generationRef.current += 1;
@@ -107,24 +103,11 @@ export function ReaderPage(props: { gameId: string; stream: DialogueStream; onSe
 
   useEffect(() => {
     let current = true;
-    void listGames()
-      .then((value) => { if (current) setGames(value); })
-      .catch((reason) => { if (current) setError(reason instanceof Error ? reason.message : "Could not load games."); });
+    void listGames().then((value) => { if (current) setGames(value); }).catch((reason) => { if (current) setError(reason instanceof Error ? reason.message : "Could not load games."); });
     return () => { current = false; };
   }, []);
-
   useEffect(() => {
-    sourceGenerationRef.current += 1;
-    setSourcePreview(null);
-    setSourceError("");
-    setSourceBusy(false);
-  }, [props.gameId]);
-
-  useEffect(() => {
-    if (!props.gameId) {
-      setItems([]);
-      return;
-    }
+    if (!props.gameId) { setItems([]); return; }
     let current = true;
     let historyLoaded = false;
     const buffered: Dialogue[] = [];
@@ -159,30 +142,10 @@ export function ReaderPage(props: { gameId: string; stream: DialogueStream; onSe
       setTranslations({});
       await clearDialogues(props.gameId);
       setItems([]);
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Could not clear dialogue.");
     }
+    catch (reason) { setError(reason instanceof Error ? reason.message : "Could not clear dialogue."); }
   };
-
   const selectedGame = games.find((game) => game.appId === props.gameId);
-  const hasNativePreview = selectedGame?.engine === "nexas" && selectedGame.sourceStatus === "experimental";
-
-  const scanNativeSource = async () => {
-    if (!selectedGame || !hasNativePreview) return;
-    const generation = sourceGenerationRef.current;
-    setSourceBusy(true);
-    setSourceError("");
-    try {
-      const preview = await getSourcePreview(selectedGame.appId);
-      if (generation === sourceGenerationRef.current) setSourcePreview(preview);
-    } catch (reason) {
-      if (generation === sourceGenerationRef.current) {
-        setSourceError(reason instanceof Error ? reason.message : "Could not read native source.");
-      }
-    } finally {
-      if (generation === sourceGenerationRef.current) setSourceBusy(false);
-    }
-  };
 
   return <section class="panel reader-panel" aria-labelledby="reader-heading">
     <div class="section-heading">
@@ -196,36 +159,7 @@ export function ReaderPage(props: { gameId: string; stream: DialogueStream; onSe
         {translationEnabled && translating && <span class="translation-status" role="status" aria-live="polite">Translating…</span>}
       </div>
     </div>
-
     {error && <p class="error" role="alert">{error}</p>}
-
-    {hasNativePreview && <section class="source-preview" aria-label="Experimental native source preview">
-      <div class="source-preview-heading">
-        <div>
-          <p class="eyebrow">EXPERIMENTAL NATIVE PREVIEW</p>
-          <p class="status">Read-only NeXAS memory scan. Results are not chronological and are never saved to Reader history or sent to the translation queue.</p>
-        </div>
-        <button class="primary" onClick={() => void scanNativeSource()} disabled={sourceBusy}>
-          {sourceBusy ? "Scanning…" : sourcePreview ? "Rescan native text" : "Scan native text"}
-        </button>
-      </div>
-      {sourceError && <p class="error" role="alert">{sourceError}</p>}
-      {sourcePreview && <div class="source-preview-results">
-        <p class="notice" role="status">{sourcePreview.message}</p>
-        <p class="status">Process {sourcePreview.pid ?? "not found"} · {sourcePreview.build.architecture} · {sourcePreview.candidates.length} displayable candidates · {(sourcePreview.bytesRead / (1024 * 1024)).toFixed(1)} MiB read</p>
-        <details><summary>Executable SHA-256</summary><p class="path">{sourcePreview.build.sha256}</p></details>
-        {sourcePreview.candidates.length === 0
-          ? <p class="status">No dialogue-shaped candidates found. Open a story scene in AQUARIUM, then scan again.</p>
-          : <div class="source-preview-list">
-              {sourcePreview.candidates.map((candidate) => <article class="source-preview-line" key={candidate.address}>
-                <div class="speaker" lang="ja">{candidate.speaker}</div>
-                <div class="source-preview-text" lang="ja">{candidate.text}</div>
-                <span class="source-address">{candidate.address}</span>
-              </article>)}
-            </div>}
-      </div>}
-    </section>}
-
     {!props.gameId ? <p class="status">Choose a detected game to read its dialogue.</p> : <DialogueList items={items} translations={translationEnabled ? translations : {}} />}
   </section>;
 }

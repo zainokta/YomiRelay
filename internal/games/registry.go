@@ -32,7 +32,6 @@ type DiscoverFunc func() ([]steam.Installation, error)
 type HookStatusFunc func(Game) bool
 type ActivityFunc func(string) (lastSeen time.Time, active bool, known bool)
 
-// Registry contains the currently detected games.
 type Registry struct {
 	mu       sync.RWMutex
 	discover DiscoverFunc
@@ -45,7 +44,6 @@ func NewRegistry(discover DiscoverFunc, hooks HookStatusFunc, activity ActivityF
 	return &Registry{discover: discover, hooks: hooks, activity: activity, games: make(map[string]Game)}
 }
 
-// Refresh replaces the registry only after discovery succeeds.
 func (r *Registry) Refresh() error {
 	installations, err := r.discover()
 	if err != nil {
@@ -66,16 +64,20 @@ func (r *Registry) Refresh() error {
 			}
 			game.Engine = "nexas"
 			game.EngineConfidence = "high"
-			game.DialogueSource = "native-memory-preview"
+			game.DialogueSource = "nexas-exec-hook"
 			game.ExecutableHash = build.SHA256
 			game.SourceStatus = "unsupported-build"
-			game.SourceMessage = "This AQUARIUM executable version is not supported. No native preview will run."
+			game.SourceMessage = "This AQUARIUM executable version is not supported by the live NeXAS hook."
 			if build.VerifiedBuild {
-				game.SourceStatus = "experimental"
-				game.SourceMessage = "NeXAS detected. Experimental read-only memory preview is available in Reader; results are not chronological and are never stored in history."
 				if runtime.GOOS != "linux" {
 					game.SourceStatus = "unsupported-platform"
-					game.SourceMessage = "AQUARIUM native preview currently requires Linux and Steam Proton."
+					game.SourceMessage = "AQUARIUM live NeXAS hook currently requires Linux and Steam Proton."
+				} else if _, err := aquarium.FindHook(installation.InstallPath); err != nil {
+					game.SourceStatus = "unsupported-hook"
+					game.SourceMessage = "AQUARIUM build was recognized, but its NeXAS hook signature did not validate."
+				} else {
+					game.SourceStatus = "native-auto"
+					game.SourceMessage = "Live NeXAS execution hook is enabled automatically while YomiRelay is running."
 				}
 			}
 		} else {

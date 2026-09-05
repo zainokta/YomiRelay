@@ -1,4 +1,4 @@
-// Package aquarium contains the verified AQUARIUM build identity and native-source diagnostics.
+// Package aquarium contains verified AQUARIUM/NeXAS build identity and hook metadata.
 package aquarium
 
 import (
@@ -23,7 +23,7 @@ type Build struct {
 }
 
 // Inspect requires both the archive layout and a NeXAS CodeView record in a valid x86 PE.
-// VerifiedBuild identifies the investigated binary, not a working dialogue hook.
+// VerifiedBuild identifies the AQUARIUM executable build that was investigated for the live hook.
 func Inspect(root string) (Build, error) {
 	for _, name := range []string{"Thumbnail.pac", "Script.pac", "System.pac", "Language.pac"} {
 		info, err := os.Stat(filepath.Join(root, name))

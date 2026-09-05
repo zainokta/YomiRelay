@@ -92,7 +92,7 @@ func Run(ctx context.Context, config Config, logger *log.Logger) error {
 	logger.Printf("discovered %d game installations", len(registry.List()))
 	codex := translation.New("codex")
 	defer func() { _ = codex.Close() }()
-	apiHandler := api.New(api.Dependencies{InspectSource: nativeInspector(), Games: registry, Hooks: manager, Store: store, Broker: broker, Translator: codex.Translate, Logger: logger})
+	apiHandler := api.New(api.Dependencies{Games: registry, Hooks: manager, Store: store, Broker: broker, Translator: codex.Translate, Logger: logger})
 	listener, err := receiver.Listen(ctx, config.UDPAddr, func(value dialogue.Dialogue) {
 		store.Append(value)
 		broker.Publish(value)
@@ -100,6 +100,7 @@ func Run(ctx context.Context, config Config, logger *log.Logger) error {
 	if err != nil {
 		return err
 	}
+	startNativeSources(ctx, registry, config.UDPAddr, logger)
 	server := &http.Server{Addr: config.HTTPAddr, Handler: RootHandler(apiHandler, web.Handler())}
 	serverErr := make(chan error, 1)
 	listenerErr := make(chan error, 1)
