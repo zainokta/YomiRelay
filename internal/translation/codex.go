@@ -15,10 +15,12 @@ import (
 )
 
 const (
-	MaxTextBytes    = 8192
-	maxOutputBytes  = 256 * 1024
-	maxCacheEntries = 1000
-	requestTimeout  = 30 * time.Second
+	MaxTextBytes           = 8192
+	maxOutputBytes         = 256 * 1024
+	maxCacheEntries        = 1000
+	requestTimeout         = 45 * time.Second
+	maxTranslationAttempts = 3
+	retryBaseDelay         = 250 * time.Millisecond
 )
 
 var ErrUnavailable = errors.New("codex translation unavailable")
@@ -69,33 +71,78 @@ func (c *Client) Translate(ctx context.Context, gameID, text string) (Result, er
 	defer cancel()
 	c.rpcMu.Lock()
 	defer c.rpcMu.Unlock()
-	server, err := c.ensureServer(runCtx)
-	if err != nil {
-		return Result{}, fmt.Errorf("%w: start app-server: %v", ErrUnavailable, err)
-	}
-	result, err := c.translateWithServer(runCtx, server, text)
-	if err != nil {
-		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) || errors.Is(err, errAppServerClosed) {
-			c.server = nil
-			_ = server.close()
+
+	var lastErr error
+	for attempt := 1; attempt <= maxTranslationAttempts; attempt++ {
+		server, err := c.ensureServer(runCtx)
+		if err == nil {
+			var result Result
+			result, err = c.translateWithServer(runCtx, server, text)
+			if err == nil {
+				c.cacheResult(key, result)
+				return result, nil
+			}
 		}
-		if errors.Is(err, ErrUnavailable) {
-			return Result{}, err
+		lastErr = err
+
+		// A failed turn can leave the stdio app-server or its model session in a
+		// bad state. Discard it before retrying so the next attempt starts clean.
+		c.resetServer()
+		if runCtx.Err() != nil || ctx.Err() != nil {
+			break
 		}
-		return Result{}, fmt.Errorf("%w: app-server: %v", ErrUnavailable, err)
+		if attempt == maxTranslationAttempts {
+			break
+		}
+		if !waitRetry(runCtx, time.Duration(attempt)*retryBaseDelay) {
+			break
+		}
 	}
 
-	c.mu.Lock()
-	if _, exists := c.cache[key]; !exists {
-		if len(c.order) >= maxCacheEntries {
-			delete(c.cache, c.order[0])
-			c.order = c.order[1:]
-		}
-		c.cache[key] = result
-		c.order = append(c.order, key)
+	if lastErr == nil {
+		lastErr = runCtx.Err()
 	}
-	c.mu.Unlock()
-	return result, nil
+	if lastErr == nil {
+		lastErr = errors.New("translation attempt failed")
+	}
+	if errors.Is(lastErr, ErrUnavailable) {
+		return Result{}, fmt.Errorf("%w: failed after %d attempts: %v", ErrUnavailable, maxTranslationAttempts, lastErr)
+	}
+	return Result{}, fmt.Errorf("%w: failed after %d attempts: %v", ErrUnavailable, maxTranslationAttempts, lastErr)
+}
+
+func (c *Client) cacheResult(key string, result Result) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if _, exists := c.cache[key]; exists {
+		return
+	}
+	if len(c.order) >= maxCacheEntries {
+		delete(c.cache, c.order[0])
+		c.order = c.order[1:]
+	}
+	c.cache[key] = result
+	c.order = append(c.order, key)
+}
+
+func (c *Client) resetServer() {
+	if c.server == nil {
+		return
+	}
+	server := c.server
+	c.server = nil
+	_ = server.close()
+}
+
+func waitRetry(ctx context.Context, delay time.Duration) bool {
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return false
+	case <-timer.C:
+		return true
+	}
 }
 
 func (c *Client) Close() error {

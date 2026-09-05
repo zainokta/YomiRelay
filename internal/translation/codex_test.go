@@ -64,6 +64,41 @@ func TestClientUsesRequestedModelAndCachesByGameAndText(t *testing.T) {
 	}
 }
 
+func TestClientRetriesFailedTurnWithFreshAppServer(t *testing.T) {
+	fake := &fakeAppServer{
+		waitErrors: []error{errors.New("temporary turn failure")},
+		responses:  []string{validOutput},
+	}
+	client := newFakeClient(fake)
+	got, err := client.Translate(context.Background(), "111", validSource)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Translation != "The cafe." {
+		t.Fatalf("result = %#v", got)
+	}
+	fake.mu.Lock()
+	starts, waits, closed := fake.starts, fake.waits, fake.closed
+	fake.mu.Unlock()
+	if starts != 2 || waits != 2 || closed != 1 {
+		t.Fatalf("starts=%d waits=%d closed=%d, want 2/2/1", starts, waits, closed)
+	}
+}
+
+func TestClientRetriesInvalidModelOutput(t *testing.T) {
+	fake := &fakeAppServer{responses: []string{"not json", validOutput}}
+	client := newFakeClient(fake)
+	if _, err := client.Translate(context.Background(), "111", validSource); err != nil {
+		t.Fatal(err)
+	}
+	fake.mu.Lock()
+	starts, waits := fake.starts, fake.waits
+	fake.mu.Unlock()
+	if starts != 2 || waits != 2 {
+		t.Fatalf("starts=%d waits=%d, want 2/2", starts, waits)
+	}
+}
+
 func TestClientRejectsOversizedSourceAndWrapsCommandFailure(t *testing.T) {
 	client := New("codex")
 	client.start = func(string) (appServerTransport, error) {
@@ -105,6 +140,7 @@ type fakeAppServer struct {
 	waits          int
 	closed         int
 	responses      []string
+	waitErrors     []error
 	waitForContext bool
 	waitCalled     chan struct{}
 	threadParams   map[string]any
@@ -152,8 +188,13 @@ func (f *fakeAppServer) waitTurn(ctx context.Context, _, _ string) (string, erro
 		f.waitCalled = nil
 	}
 	waitForContext := f.waitForContext
+	var waitErr error
+	if len(f.waitErrors) > 0 {
+		waitErr = f.waitErrors[0]
+		f.waitErrors = f.waitErrors[1:]
+	}
 	response := ""
-	if len(f.responses) > 0 {
+	if waitErr == nil && len(f.responses) > 0 {
 		response = f.responses[0]
 		f.responses = f.responses[1:]
 	}
@@ -161,6 +202,9 @@ func (f *fakeAppServer) waitTurn(ctx context.Context, _, _ string) (string, erro
 	if waitForContext {
 		<-ctx.Done()
 		return "", ctx.Err()
+	}
+	if waitErr != nil {
+		return "", waitErr
 	}
 	return response, nil
 }
