@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"yomirelay/internal/aquarium"
+	"yomirelay/internal/source/aquarium"
 	"yomirelay/internal/steam"
 )
 
@@ -66,16 +66,16 @@ func (r *Registry) Refresh() error {
 			}
 			game.Engine = "nexas"
 			game.EngineConfidence = "high"
-			game.DialogueSource = "native-hook"
+			game.DialogueSource = "native-memory-preview"
 			game.ExecutableHash = build.SHA256
 			game.SourceStatus = "unsupported-build"
-			game.SourceMessage = "This AQUARIUM executable version is not supported. No hook will be installed."
+			game.SourceMessage = "This AQUARIUM executable version is not supported. No native preview will run."
 			if build.VerifiedBuild {
 				game.SourceStatus = "experimental"
-				game.SourceMessage = "NeXAS detected. Native capture is under development; live Reader delivery is not available yet."
+				game.SourceMessage = "NeXAS detected. Experimental read-only memory preview is available in Reader; results are not chronological and are never stored in history."
 				if runtime.GOOS != "linux" {
 					game.SourceStatus = "unsupported-platform"
-					game.SourceMessage = "AQUARIUM native diagnostics currently require Linux and Steam Proton. No hook will be installed."
+					game.SourceMessage = "AQUARIUM native preview currently requires Linux and Steam Proton."
 				}
 			}
 		} else {

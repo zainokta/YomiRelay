@@ -10,11 +10,15 @@ import (
 	"strings"
 
 	"golang.org/x/sys/unix"
-	"yomirelay/internal/aquarium"
+	"yomirelay/internal/source/aquarium"
 )
 
 func capture(root string) (aquarium.Snapshot, error) {
-	result := aquarium.Snapshot{Status: "unverified", Message: "Memory candidates may include old script or backlog copies. These are not live dialogue events.", Candidates: []aquarium.Candidate{}}
+	result := aquarium.Snapshot{
+		Status:     "unverified",
+		Message:    "Memory candidates may include old script or backlog copies. They are not live dialogue events.",
+		Candidates: []aquarium.Candidate{},
+	}
 	entries, err := os.ReadDir("/proc")
 	if err != nil {
 		return result, err
@@ -61,6 +65,7 @@ func capture(root string) (aquarium.Snapshot, error) {
 	if process == "" {
 		return result, fmt.Errorf("AQUARIUM is not visible; start it through Steam and run YomiRelay outside a restricted process sandbox")
 	}
+
 	before, err := os.ReadFile(filepath.Join(process, "stat"))
 	if err != nil {
 		return result, err
@@ -79,7 +84,7 @@ func capture(root string) (aquarium.Snapshot, error) {
 		var overlap []byte
 		for address := start; address < end; {
 			if result.BytesRead >= 512<<20 {
-				return result, fmt.Errorf("diagnostic memory budget exceeded; no live dialogue was emitted")
+				return result, fmt.Errorf("native preview memory budget exceeded")
 			}
 			size := uint64(len(buffer))
 			if remaining := uint64(512<<20) - result.BytesRead; remaining < size {
@@ -98,7 +103,8 @@ func capture(root string) (aquarium.Snapshot, error) {
 				overlap = nil
 				address += size
 				continue
-			} // A heap region can disappear during the read.
+			}
+
 			result.BytesRead += uint64(n)
 			data := append(overlap, buffer[:n]...)
 			base := address - uint64(len(overlap))
@@ -126,11 +132,11 @@ func capture(root string) (aquarium.Snapshot, error) {
 			break
 		}
 	}
+
 	after, err := os.ReadFile(filepath.Join(process, "stat"))
 	if err != nil {
 		return result, err
 	}
-	// Field 22 is the process start time. Reject PID reuse instead of returning another process's data.
 	identity := func(stat []byte) string {
 		pos := bytes.LastIndexByte(stat, ')')
 		if pos < 0 {

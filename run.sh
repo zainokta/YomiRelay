@@ -26,6 +26,10 @@ if [[ ! -d node_modules ]]; then
   npm ci
 fi
 
+mkdir -p "$ROOT_DIR/dist"
+printf '[native] building AQUARIUM preview helper\n'
+( cd "$ROOT_DIR" && go build -o "$ROOT_DIR/dist/yomirelay-aquarium" ./cmd/yomirelay-aquarium )
+
 BACKEND_PID=""
 FRONTEND_PID=""
 CLEANED=0
@@ -46,7 +50,11 @@ cleanup() {
 trap cleanup EXIT INT TERM
 
 printf '[backend] starting Go server\n'
-( cd "$ROOT_DIR" && exec go run ./cmd/yomirelay ) &
+(
+  cd "$ROOT_DIR"
+  export YOMIRELAY_AQUARIUM_HELPER="$ROOT_DIR/dist/yomirelay-aquarium"
+  exec go run ./cmd/yomirelay
+) &
 BACKEND_PID=$!
 printf '[frontend] starting Vite server\n'
 ( cd "$ROOT_DIR/frontend" && exec npm run dev ) &

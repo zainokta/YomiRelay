@@ -10,14 +10,11 @@ import (
 	"strings"
 
 	"yomirelay/internal/api"
-	"yomirelay/internal/aquarium"
 	"yomirelay/internal/games"
+	"yomirelay/internal/source/aquarium"
 )
 
 func nativeInspector() api.InspectSourceFunc {
-	if os.Getenv("YOMIRELAY_NATIVE_DEBUG") != "1" {
-		return nil
-	}
 	// One on-demand read-only helper at a time prevents concurrent memory scans.
 	busy := make(chan struct{}, 1)
 	return func(ctx context.Context, game games.Game) (aquarium.Snapshot, error) {
@@ -27,6 +24,7 @@ func nativeInspector() api.InspectSourceFunc {
 		default:
 			return aquarium.Snapshot{}, fmt.Errorf("native inspection is already running")
 		}
+
 		helper := os.Getenv("YOMIRELAY_AQUARIUM_HELPER")
 		if helper == "" {
 			executable, err := os.Executable()
@@ -35,6 +33,7 @@ func nativeInspector() api.InspectSourceFunc {
 			}
 			helper = filepath.Join(filepath.Dir(executable), "yomirelay-aquarium")
 		}
+
 		command := exec.CommandContext(ctx, helper, "-install", game.InstallPath)
 		var stderr strings.Builder
 		command.Stderr = &stderr
@@ -46,8 +45,9 @@ func nativeInspector() api.InspectSourceFunc {
 			if stderr.Len() > 0 {
 				return aquarium.Snapshot{}, fmt.Errorf("native inspection: %s", strings.TrimSpace(stderr.String()))
 			}
-			return aquarium.Snapshot{}, fmt.Errorf("native helper unavailable; build native/aquarium and set YOMIRELAY_AQUARIUM_HELPER: %w", err)
+			return aquarium.Snapshot{}, fmt.Errorf("native helper unavailable at %s: %w", helper, err)
 		}
+
 		var result aquarium.Snapshot
 		if err := json.Unmarshal(data, &result); err != nil {
 			return result, fmt.Errorf("invalid native helper response: %w", err)

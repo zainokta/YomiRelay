@@ -30,5 +30,6 @@ cd "$ROOT_DIR"
 go test ./...
 mkdir -p dist
 go build -o dist/yomirelay ./cmd/yomirelay
-go build -o dist/yomirelay-aquarium ./native/aquarium
+go build -o dist/yomirelay-aquarium ./cmd/yomirelay-aquarium
 printf 'Built: %s\n' "$ROOT_DIR/dist/yomirelay"
+printf 'Built native preview helper: %s\n' "$ROOT_DIR/dist/yomirelay-aquarium"

@@ -52,14 +52,26 @@ dt { color: #53677e; font-size: 0.82rem; } dd { margin: 0; overflow-wrap: anywhe
 .dialogue time { color: #65758a; display: block; font-size: 0.72rem; margin-top: 0.3rem; }
 .jump { bottom: 1rem; position: absolute; right: 1rem; }
 .hidden-jump { margin-top: 0.75rem; }
+
+.source-preview { border: 1px solid #8ba4c7; border-radius: 0.6rem; margin: 1rem 0; padding: 0.85rem; }
+.source-preview-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; }
+.source-preview-heading .status { margin-bottom: 0; max-width: 46rem; }
+.source-preview .path { overflow-wrap: anywhere; }
+.source-preview-list { border: 1px solid #d3dbe4; border-radius: 0.5rem; max-height: 55vh; overflow-y: auto; margin-top: 0.75rem; padding: 0 0.75rem; }
+.source-preview-line { border-bottom: 1px solid #e2e7ec; padding: 0.75rem 0.35rem; user-select: text; }
+.source-preview-line:last-child { border-bottom: 0; }
+.source-preview-text { font-size: 1.12rem; overflow-wrap: anywhere; white-space: pre-wrap; }
+.source-address { color: #65758a; display: block; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.7rem; margin-top: 0.35rem; }
+
 @media (prefers-color-scheme: dark) {
   :root { color: #edf2f7; background: #111827; }
   button, select, .panel { background: #1d2735; color: inherit; border-color: #46576b; }
   .panel, .game-card { border-color: #46576b; box-shadow: none; }
   .app-header { border-color: #46576b; }
   .app-id, .status, .path, dt, .eyebrow { color: #aebdd0; }
-  .reader-list { border-color: #46576b; }
-  .dialogue { border-color: #334256; }
+  .reader-list, .source-preview-list { border-color: #46576b; }
+  .dialogue, .source-preview-line { border-color: #334256; }
+  .source-preview { border-color: #607da7; }
   .notice { background: #172d4e; }
   .error { background: #421d25; color: #ffb7bd; }
   .badge { background: #334256; }
@@ -68,7 +80,6 @@ dt { color: #53677e; font-size: 0.82rem; } dd { margin: 0; overflow-wrap: anywhe
   .dialogue-translation { border-color: #7e9bc4; }
 }
 
-.source-debug { margin-top: 1rem; border-top: 1px solid #8ba4c7; padding-top: 0.75rem; }
-.source-debug .path, .source-candidates p { overflow-wrap: anywhere; }
-.source-candidates { max-height: 22rem; overflow-y: auto; padding-inline-start: 1.5rem; }
-.source-candidates p { white-space: pre-wrap; }
+@media (max-width: 720px) {
+  .source-preview-heading { align-items: stretch; flex-direction: column; }
+}

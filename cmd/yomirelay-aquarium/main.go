@@ -1,4 +1,4 @@
-// The AQUARIUM diagnostic helper runs separately from the HTTP backend.
+// The AQUARIUM read-only native preview helper runs separately from the HTTP backend.
 package main
 
 import (
@@ -8,8 +8,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"yomirelay/internal/aquarium"
 	"yomirelay/internal/platform"
+	"yomirelay/internal/source/aquarium"
 	"yomirelay/internal/steam"
 )
 

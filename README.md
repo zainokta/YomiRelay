@@ -1,14 +1,17 @@
 # YomiRelay
 
-YomiRelay is a local Ren'Py dialogue relay: it sends installed Ren'Py Steam-game dialogue to ordinary selectable browser text on localhost. The Reader can optionally ask a locally authenticated Codex CLI for English translations and Japanese word glosses. Experimental AQUARIUM/NeXAS detection and read-only native diagnostics are also available. They do not yet provide live Reader dialogue. No OCR or clipboard monitoring is used.
+YomiRelay is a local visual-novel dialogue relay that puts Japanese text into ordinary selectable browser DOM for tools such as Yomitan. Ren'Py games use the normal YomiRelay dialogue pipeline; AQUARIUM/NeXAS currently has an experimental read-only memory preview in Reader. No OCR or clipboard monitoring is used.
 
 ## Requirements and quick start
 
 - Go 1.23 or newer
 - Node.js 22.22.2 or newer, npm
-- Linux, Windows, or macOS
+- Linux, Windows, or macOS for the main app
+- Linux + Steam Proton for the current AQUARIUM native preview
 
-For development, run `./run.sh`, then open **http://127.0.0.1:5173**. For a production binary, run `./build.sh`, then `./dist/yomirelay` and open **http://127.0.0.1:17321**. The frontend uses Vite only during development/build; the binary embeds its static assets and needs no Node.js at runtime.
+For development, run `./run.sh`, then open **http://127.0.0.1:5173**. The script installs frontend dependencies when needed, builds the AQUARIUM native preview helper, and starts the Go backend plus Octane/Vite frontend together. No native debug flag or second terminal is required.
+
+For a production build, run `./build.sh`, then keep `dist/yomirelay` and `dist/yomirelay-aquarium` together. Start `./dist/yomirelay` and open **http://127.0.0.1:17321**. The frontend is embedded into the main binary and needs no Node.js at runtime.
 
 Translation is optional. Install the Codex CLI, sign in with your ChatGPT account, and make `codex` available on `PATH` if you want English translations. YomiRelay does not check this at startup; the Reader starts in Japanese-only mode. If the CLI is missing or not authenticated, enabling translation simply returns the Reader to Japanese-only mode. See the [Codex CLI guide](https://learn.chatgpt.com/docs/codex/cli) for setup.
 
@@ -18,76 +21,65 @@ The backend defaults to HTTP `127.0.0.1:17321` and loopback UDP `127.0.0.1:17322
 
 Steam discovery checks known platform Steam roots and only configured `steamapps/libraryfolders.vdf` files and `appmanifest_*.acf` manifests. It does not recursively scan the disk. A game is identified as Ren'Py from a real `game` directory plus runtime, archive, or script evidence; its name is never a signal.
 
-Hook installation writes only `<install>/game/_yomirelay_hook.rpy`. It uses the two YomiRelay ownership markers, refuses symbolic links and unmanaged files, and atomically updates managed files. Removing a hook also requires ownership markers. Restart the game after installing a hook. Dialogue is kept in memory (up to 1000 entries per game) and is not persisted.
+Ren'Py hook installation writes only `<install>/game/_yomirelay_hook.rpy`. It uses the two YomiRelay ownership markers, refuses symbolic links and unmanaged files, and atomically updates managed files. Removing a hook also requires ownership markers. Restart the game after installing a hook. Canonical dialogue is kept in memory (up to 1000 entries per game) and is not persisted.
 
-The Reader renders normal light-DOM text with `lang="ja"`, so Yomitan can inspect it through its ordinary browser scanning behavior. YomiRelay does not call Yomitan APIs. Optional translation uses only the local `codex` executable after the user enables it; the MVP has no OCR, screenshots, clipboard monitoring, process scanning/injection, Textractor, dictionary APIs, furigana, Anki, accounts, authentication, cloud sync, persistence, game launching, or non-Ren'Py source.
+The Reader renders normal light-DOM text with `lang="ja"`, so Yomitan can inspect it through ordinary browser scanning. YomiRelay does not call Yomitan APIs. Optional translation uses only the local `codex` executable after the user enables it.
+
+AQUARIUM is different: its current experimental source is a read-only process-memory snapshot under Linux/Proton. It does not inject code, patch the game, write game files, or publish memory candidates into canonical Reader history. Memory candidates can be stale, duplicated, backlog-related, or out of story order, so they are intentionally shown only in the experimental Reader preview.
 
 ## Manual acceptance test
 
 1. Install Go, Node.js 22.22.2 or newer, and npm.
 2. Clone the repository and change into its directory.
 3. Run `./run.sh`.
-4. Confirm the backend and Vite startup labels are printed.
-5. Open `http://127.0.0.1:5173` in a browser (development frontend; production uses `http://127.0.0.1:17321`).
-6. Confirm the YomiRelay Games page loads as normal HTML.
-7. Confirm the page is reachable only on the configured local address.
-8. Confirm Steam roots and configured libraries are discovered without a whole-disk scan.
-9. Confirm an installed Ren'Py game with a `game` directory and runtime/archive/script evidence appears.
-10. Confirm a non-Ren'Py installation or bare `game` directory does not appear.
-11. Confirm the game card shows its name, app ID, install path, Ren'Py engine, and hook state.
-12. Click Refresh and confirm discovery completes without losing valid games.
-13. Click Install Hook for a detected game.
-14. Confirm the notice says `Restart the game to activate the hook.`
-15. Confirm the hook exists at `<install>/game/_yomirelay_hook.rpy` and begins with both ownership markers.
-16. Confirm an unmanaged existing hook is refused and remains byte-for-byte unchanged.
-17. Restart the selected Ren'Py game.
-18. Open Reader and select the game.
-19. Advance dialogue and confirm each statement appears as selectable Japanese light-DOM text.
-20. Select a dialogue phrase with the browser and confirm ordinary Yomitan scanning can inspect it.
-21. Open Reader in two browser windows and confirm both receive live dialogue.
-22. Scroll away from the bottom, advance dialogue, and confirm the existing scroll position is preserved and Jump to latest appears.
-23. Return to the bottom or click Jump to latest and confirm new dialogue follows the latest entry.
-24. Stop YomiRelay while the game is running and confirm gameplay continues without waiting for the relay.
-25. Restart YomiRelay, advance dialogue, and confirm reception resumes; confirm Clear History affects only the selected game.
-26. Stop the game, click Remove Hook, and confirm only the managed hook is removed; confirm an unmanaged hook is never deleted.
-27. Confirm the Reader starts with `Enable English translation` off and no Codex process is started.
-28. Click `Enable English translation` and confirm existing history is translated progressively without hiding Japanese text.
-29. Advance the game and confirm each new Japanese line appears before its English translation finishes.
-30. Hover or keyboard-focus a glossed Japanese word and confirm kana plus its English meaning appear.
-31. Confirm the full English sentence appears below the Japanese sentence.
-32. Click `Disable translation` and confirm translations/tooltips hide while Japanese dialogue continues.
-33. Remove `codex` from `PATH` or use an unauthenticated CLI, enable translation, and confirm the button returns to off with no translation error while dialogue continues.
+4. Confirm the native helper, backend, and Vite startup labels are printed.
+5. Open `http://127.0.0.1:5173`.
+6. Confirm Steam roots and configured libraries are discovered without a whole-disk scan.
+7. Confirm an installed Ren'Py game appears, install its hook, restart the game, and verify dialogue appears as selectable Japanese DOM text in Reader.
+8. Confirm Yomitan can scan the Japanese text normally.
+9. Confirm stopping YomiRelay never blocks the Ren'Py game.
+10. Confirm `Clear History` affects only the selected game's canonical dialogue.
+
+For AQUARIUM on Linux/Steam Proton:
+
+11. Start AQUARIUM through Steam.
+12. Confirm AQUARIUM appears with engine `NeXAS` and source `Experimental native preview`.
+13. Open AQUARIUM in Reader.
+14. Click **Scan native text**.
+15. Confirm the preview reports the process, executable hash, memory read size, and displayable candidates.
+16. Confirm candidate speaker/text is normal selectable DOM with `lang="ja"` and Yomitan can scan it.
+17. Confirm the warning says memory candidates are not chronological and are never stored in Reader history or sent to the translation queue.
+18. Scan again and confirm the preview is replaced rather than appended to canonical history.
+19. Confirm `GET /api/dialogues?gameId=2515070` remains unaffected by native scans.
+20. Stop YomiRelay while AQUARIUM is running and confirm AQUARIUM is unaffected.
 
 ## Build details
 
-`./build.sh` installs frontend dependencies when needed, builds the Octane/Vite client, runs `go test ./...`, and writes `dist/yomirelay`. The frontend uses relative `/api/...` requests and one shared `/api/events` stream. Translation is not required for startup; it invokes `codex exec` only after the Reader button is enabled. No persistence or remote binding is included.
+`./build.sh` installs frontend dependencies when needed, builds the Octane/Vite client, runs `go test ./...`, and writes:
 
-## AQUARIUM native diagnostics (experimental)
-
-Steam discovery finds AQUARIUM (App ID `2515070`) automatically. The Games page shows its NeXAS engine and executable support status.
-Live dialogue capture is not ready. Install Hook stays disabled, and install/remove requests return `SOURCE_UNAVAILABLE` without writing game files.
-
-Build the backend and native helper with `./build.sh`. Then enable diagnostics:
-
-```sh
-YOMIRELAY_NATIVE_DEBUG=1 ./dist/yomirelay
+```text
+dist/yomirelay
+dist/yomirelay-aquarium
 ```
 
-Open Games and select **Inspect native source** on AQUARIUM. The separate helper reads the running Proton process without injection or debugger attachment.
-The panel shows UTF-8 memory candidates, the process ID, and executable hash. Candidates can include old script, backlog, and menu text.
-They never enter Reader history. Inspection is manual and temporary, not the final live source.
+The frontend uses relative `/api/...` requests and one shared `/api/events` stream. The native preview helper is a separate process so read-only game-memory inspection stays isolated from the HTTP backend.
 
-For development with the existing `./run.sh`, build the helper first:
+The source-specific layout is intentionally separated:
 
-```sh
-go build -o dist/yomirelay-aquarium ./native/aquarium
-YOMIRELAY_NATIVE_DEBUG=1 YOMIRELAY_AQUARIUM_HELPER="$PWD/dist/yomirelay-aquarium" ./run.sh
+```text
+cmd/yomirelay/                 main application
+cmd/yomirelay-aquarium/        AQUARIUM native preview helper
+internal/source/aquarium/      AQUARIUM/NeXAS detection and candidate parsing
+internal/dialogue/             canonical chronological dialogue store
+internal/events/               canonical SSE event broker
 ```
 
-Diagnostics require Linux, the investigated executable hash, and permission to read the Proton process.
-Run YomiRelay outside containers or sandboxes that hide host processes. The helper reports access errors and does not change system security settings.
-Only one bounded inspection runs at a time. Closing YomiRelay cannot interrupt gameplay because the helper only reads memory.
+`YOMIRELAY_AQUARIUM_HELPER` remains available only as an optional developer override for the helper path. Normal `./run.sh` and `./build.sh` usage does not require setting it.
 
-No files are installed in the game directory, so this diagnostic stage needs no ownership manifest or game-file removal.
-A future installer must add ownership tracking before it writes native hook files.
-See [the engine investigation](docs/aquarium-engine-investigation.md) for binary evidence and pending live-capture acceptance tests.
+## AQUARIUM native preview status
+
+Steam discovery identifies AQUARIUM (App ID `2515070`) by its verified NeXAS-compatible archive/PE fingerprint. The investigated executable hash is allowlisted before native memory inspection runs.
+
+Live chronological NeXAS hooking is not implemented yet. The current helper scans readable anonymous memory from the Steam Proton `Aquarium.exe` process and finds speaker-tagged candidate strings. Because memory address order is not story order, YomiRelay does **not** turn these candidates into `dialogue.Dialogue`, does **not** append them to history, and does **not** publish them over the canonical SSE stream.
+
+No environment feature flag is required. Open AQUARIUM in Reader and use **Scan native text**. If the helper cannot access the Proton process or the executable version is unsupported, Reader shows the error without changing the game.

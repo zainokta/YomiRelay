@@ -135,12 +135,8 @@ func (s server) games(w http.ResponseWriter, r *http.Request) {
 
 func (s server) hook(w http.ResponseWriter, r *http.Request, path string) {
 	parts := strings.Split(strings.TrimPrefix(path, "/"), "/")
-	if len(parts) == 4 && parts[0] == "games" && parts[2] == "source-debug" && parts[3] == "publish" && validAppID(parts[1]) {
-		s.publishSource(w, r, parts[1])
-		return
-	}
-	if len(parts) == 3 && parts[0] == "games" && parts[2] == "source-debug" && validAppID(parts[1]) {
-		s.sourceDebug(w, r, parts[1])
+	if len(parts) == 3 && parts[0] == "games" && parts[2] == "source-preview" && validAppID(parts[1]) {
+		s.sourcePreview(w, r, parts[1])
 		return
 	}
 	if len(parts) != 3 || parts[0] != "games" || parts[2] != "hook" || !validAppID(parts[1]) {
