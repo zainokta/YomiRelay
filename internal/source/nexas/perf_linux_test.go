@@ -20,22 +20,27 @@ func TestPerfEventAttrIsUserSpaceOnly(t *testing.T) {
 	if attr.Bits&unix.PerfBitExcludeUser != 0 {
 		t.Fatal("user execution was accidentally excluded from NeXAS perf hook")
 	}
+	wantRegs := uint64((1 << perfRegX86AX) | (1 << perfRegX86SI))
+	if attr.Sample_regs_user != wantRegs {
+		t.Fatalf("register mask = 0x%x, want 0x%x", attr.Sample_regs_user, wantRegs)
+	}
 	if attr.Ext1 != 0x679446 || attr.Bp_type != hwBreakpointExecute {
 		t.Fatalf("attr = %#v", attr)
 	}
 }
 
-func TestDecodePerfSampleReadsAX(t *testing.T) {
-	record := make([]byte, 24)
+func TestDecodePerfSampleReadsAXAndSI(t *testing.T) {
+	record := make([]byte, 32)
 	binary.LittleEndian.PutUint32(record[:4], unix.PERF_RECORD_SAMPLE)
 	binary.LittleEndian.PutUint16(record[6:8], uint16(len(record)))
 	binary.LittleEndian.PutUint64(record[8:16], unix.PERF_SAMPLE_REGS_ABI_32)
 	binary.LittleEndian.PutUint64(record[16:24], 0x12345678)
+	binary.LittleEndian.PutUint64(record[24:32], 0x87654321)
 	got, err := decodePerfSample(record)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.ABI != unix.PERF_SAMPLE_REGS_ABI_32 || got.AX != 0x12345678 {
+	if got.ABI != unix.PERF_SAMPLE_REGS_ABI_32 || got.AX != 0x12345678 || got.SI != 0x87654321 {
 		t.Fatalf("sample = %#v", got)
 	}
 }

@@ -19,6 +19,7 @@ import (
 const (
 	hwBreakpointExecute = 4
 	perfRegX86AX        = 0
+	perfRegX86SI        = 4
 	perfRingPages       = 8
 	maxHookStringBytes  = 8192
 )
@@ -26,6 +27,7 @@ const (
 type perfSample struct {
 	ABI uint64
 	AX  uint64
+	SI  uint64
 }
 
 type perfThreadEvent struct {
@@ -142,7 +144,7 @@ func perfEventAttr(address uint64) unix.PerfEventAttr {
 		Bp_type:          hwBreakpointExecute,
 		Ext1:             address,
 		Ext2:             uint64(unsafe.Sizeof(uintptr(0))),
-		Sample_regs_user: 1 << perfRegX86AX,
+		Sample_regs_user: (1 << perfRegX86AX) | (1 << perfRegX86SI),
 	}
 }
 
@@ -255,7 +257,7 @@ func ringCopy(data []byte, absolute uint64, size int) []byte {
 }
 
 func decodePerfSample(record []byte) (perfSample, error) {
-	if len(record) < 24 || binary.LittleEndian.Uint32(record[:4]) != unix.PERF_RECORD_SAMPLE {
+	if len(record) < 32 || binary.LittleEndian.Uint32(record[:4]) != unix.PERF_RECORD_SAMPLE {
 		return perfSample{}, fmt.Errorf("not a register sample")
 	}
 	declared := int(binary.LittleEndian.Uint16(record[6:8]))
@@ -266,7 +268,11 @@ func decodePerfSample(record []byte) (perfSample, error) {
 	if abi != unix.PERF_SAMPLE_REGS_ABI_32 && abi != unix.PERF_SAMPLE_REGS_ABI_64 {
 		return perfSample{}, fmt.Errorf("unsupported register ABI %d", abi)
 	}
-	return perfSample{ABI: abi, AX: binary.LittleEndian.Uint64(record[16:24])}, nil
+	return perfSample{
+		ABI: abi,
+		AX:  binary.LittleEndian.Uint64(record[16:24]),
+		SI:  binary.LittleEndian.Uint64(record[24:32]),
+	}, nil
 }
 
 func readHookString(pid int, ax uint64) (string, error) {

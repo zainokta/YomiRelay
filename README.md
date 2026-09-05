@@ -49,6 +49,7 @@ NeXAS game ───────►│ YomiRelay                    │
                     │ source manager               │
                     │   ├─ Ren'Py UDP receiver     │
                     │   └─ NeXAS native profiles   │
+                    │        + render-context filter│
                     │            ↓                 │
                     │       canonical Dialogue     │
                     │            ↓                 │
@@ -60,14 +61,14 @@ NeXAS game ───────►│ YomiRelay                    │
                               Yomitan
 ```
 
-Native NeXAS sources publish directly into the internal dialogue pipeline. They do not loop back through UDP.
+Native NeXAS sources publish directly into the internal dialogue pipeline. They do not loop back through UDP. The NeXAS render-context filter is isolated from the Ren'Py UDP path.
 
 ## Project layout
 
 ```text
 main.go                         application entry point
 internal/app/                   application lifecycle and HTTP/UDP wiring
-internal/source/nexas/          generic NeXAS runtime, process observer, hook resolver, and source profile registry
+internal/source/nexas/          generic NeXAS runtime, process observer, render-context filter, hook resolver, and source profile registry
 internal/source/nexas/aquarium/ AQUARIUM-specific build/signature/text profile
 internal/games/                 detected game registry
 internal/dialogue/              canonical bounded history
@@ -94,20 +95,23 @@ For the currently verified AQUARIUM Steam build, YomiRelay:
 2. validates the NeXAS-compatible executable fingerprint and exact supported SHA-256,
 3. waits for `Aquarium.exe` under Steam Proton,
 4. reads only executable pages inside the loaded PE image while resolving the known NeXAS instruction signature,
-5. stops signature scanning as soon as exactly one runtime hook address is found,
+5. stops signature scanning after the build-specific runtime hook address is validated,
 6. attaches Linux `perf_event_open` execute breakpoints to the game threads,
-7. reads the text pointer from the sampled x86 register state,
-8. normalizes NeXAS control tags,
-9. coalesces progressive/typewriter updates,
-10. appends accepted dialogue directly to canonical Reader history.
+7. samples both EAX (the text pointer) and ESI (the NeXAS render-object context),
+8. normalizes and coalesces text independently per render context,
+9. selects the dialogue render context only after repeated sentence-like Japanese lines are observed,
+10. drops other contexts such as standalone character-name widgets, autosave notices, settings, and menu text,
+11. appends accepted dialogue directly to canonical Reader history.
 
 The runtime signature scan in step 4 is an **attachment-time operation only**. It is not the old dialogue memory scanner and it does not poll game text. Once the instruction address resolves, dialogue capture is event-driven through the execution breakpoint.
 
-The AQUARIUM profile deliberately uses a build-specific instruction signature. For the verified Steam build, the expected sequence includes `mov eax,[esi+0xA4]`; only the relative `call` displacement is wildcarded. A previous broader matcher wildcarded the object-field displacement as well and produced two runtime matches under Proton, so the matcher now keeps `0xA4` exact instead of guessing between candidates.
+The render-context selector does not blacklist literal strings such as `設定` or `オートセーブ`. It learns a stable ESI render-object context from repeated dialogue-like lines, buffers a small number of candidates during selection, and then accepts only that context for the rest of the process session. This prevents character names and UI text from becoming separate Reader entries while still allowing short dialogue such as `ええ。` after the dialogue context has been selected.
+
+The AQUARIUM profile deliberately uses a build-specific instruction signature. For the verified Steam build, the expected sequence includes `mov eax,[esi+0xA4]`; only the relative `call` displacement is wildcarded. The verified Proton image exposes two copies of this short signature, so the profile validates and chooses the known dialogue hook RVA rather than guessing between them.
 
 The hook does not patch `Aquarium.exe`, inject a DLL, modify game files, or continuously scan process memory for dialogue. Hardware breakpoint file descriptors are owned by the YomiRelay process and disappear when YomiRelay exits.
 
-If the executable hash changes, the runtime signature resolves ambiguously, or kernel perf policy blocks the observer, YomiRelay fails closed and leaves the game untouched.
+If the executable hash changes, the preferred runtime hook disappears, or kernel perf policy blocks the observer, YomiRelay fails closed and leaves the game untouched.
 
 ### Why the signature is resolved at runtime
 
@@ -119,43 +123,35 @@ The game build was recognized, but its NeXAS hook signature did not validate.
 
 That check was in the wrong layer. NeXAS text-hook signatures are process-memory signatures: the relevant instruction sequence should be searched after Wine/Proton has loaded the PE image. YomiRelay now accepts the verified build during discovery and resolves the hook address from the loaded executable image when AQUARIUM starts.
 
-This does **not** weaken build safety. The exact executable SHA-256 allowlist is still checked before the native source starts, and the runtime matcher still requires exactly one signature hit before any breakpoint is installed.
+This does **not** weaken build safety. The exact executable SHA-256 allowlist is still checked before the native source starts, and the runtime matcher still validates the build-specific preferred hook site before any breakpoint is installed.
 
 ### Expected logs
 
 Before the game starts:
 
 ```text
-[nexas] AQUARIUM profile ready: sha256=... image-size=...
+[nexas] AQUARIUM profile ready: sha256=... image-size=... preferred-rva=...
 [nexas] waiting for AQUARIUM Steam/Proton process
 ```
 
-When the process appears, YomiRelay may briefly log:
-
-```text
-[nexas] waiting for AQUARIUM runtime hook signature in loaded process memory
-```
-
-After the signature becomes available:
+After the process and runtime hook are available:
 
 ```text
 [nexas] resolved runtime hook: game=AQUARIUM pid=... rva=... address=...
 [nexas] attached execution hook: game=AQUARIUM pid=... address=...
 ```
 
-If a runtime signature is still ambiguous, the error now includes every candidate RVA, for example:
+After enough story text has been observed to identify the body-text widget:
 
 ```text
-NeXAS runtime hook signature is ambiguous: 2 matches (rva=0x..., rva=0x...)
+[nexas] selected dialogue render context: pid=... esi=0x...
 ```
 
-Do not pick one candidate arbitrarily. Send those RVAs with the `[nexas]` logs so the build-specific signature can be refined safely.
-
-If the `waiting for ... runtime hook signature` message repeats every 10 seconds and never resolves, send the full `[nexas]` logs back for the next signature adjustment.
+The selector intentionally waits for repeated dialogue-like observations instead of treating the first Japanese string as story text. A few candidate lines are buffered and replayed once the context is selected.
 
 ### Linux permissions
 
-The live hook relies on Linux `perf_event_open` and same-user process memory reads. YomiRelay does not change kernel security settings automatically.
+The live hook relies on Linux `perf_event_open` and same-user process memory reads. YomiRelay requests a user-space-only perf breakpoint and does not change kernel security settings automatically.
 
 Useful diagnostics:
 
@@ -175,6 +171,8 @@ Dialogue history is kept in memory and bounded per game. `Clear History` clears 
 ## Ren'Py hooks
 
 Ren'Py hook installation writes only the managed YomiRelay `.rpy` hook inside the detected game's `game/` directory. Existing unmanaged game scripts are not overwritten. Restart a Ren'Py game after installing the hook.
+
+NeXAS-specific render-context selection is not applied to Ren'Py dialogue. Ren'Py callback events continue directly through the UDP receiver into the canonical dialogue store.
 
 ## Configuration
 
@@ -203,11 +201,14 @@ Both addresses must remain loopback addresses.
 5. start AQUARIUM through Steam/Proton
 6. confirm `[nexas] resolved runtime hook` appears
 7. confirm `[nexas] attached execution hook` appears
-8. advance Japanese story dialogue for at least 20 lines
-9. confirm lines arrive automatically and in event order
-10. confirm Yomitan can scan the rendered Japanese text
-11. check for duplicate/typewriter spam, missing narration, or backlog/menu pollution
-12. stop YomiRelay while AQUARIUM remains open and confirm the game continues normally
-13. start YomiRelay again and confirm capture resumes after the next dialogue event
+8. advance at least two normal story lines and confirm `[nexas] selected dialogue render context` appears
+9. advance Japanese story dialogue for at least 20 lines
+10. confirm story lines arrive automatically and in event order
+11. confirm standalone character names are not emitted as separate dialogue entries
+12. trigger autosave and confirm its notification is not emitted
+13. open Settings and confirm its labels/help text are not emitted
+14. confirm Yomitan can scan the rendered Japanese story text
+15. stop YomiRelay while AQUARIUM remains open and confirm the game continues normally
+16. start YomiRelay again and confirm context selection and capture resume
 
-For a failed test, include every `[nexas]` log line. The most useful distinction is whether failure happens before runtime signature resolution, while creating the perf breakpoint, or after attachment with no dialogue events.
+For a failed test, include every `[nexas]` log line and note whether the failure happens before render-context selection or after it.
