@@ -36,15 +36,16 @@ type Detection struct {
 }
 
 type buildInfo struct {
-	Verified bool
-	Hash     string
+	Verified  bool
+	Hash      string
+	ImageSize uint32
 }
 
 type profile struct {
 	AppID      string
 	Executable string
 	Inspect    func(string) (buildInfo, error)
-	HookRVA    func(string) (uint32, error)
+	Signature  func() (pattern, mask []byte)
 	Normalize  func(string) (Line, error)
 }
 
@@ -57,15 +58,9 @@ var profiles = map[string]profile{
 			if err != nil {
 				return buildInfo{}, err
 			}
-			return buildInfo{Verified: build.VerifiedBuild, Hash: build.SHA256}, nil
+			return buildInfo{Verified: build.VerifiedBuild, Hash: build.SHA256, ImageSize: build.ImageSize}, nil
 		},
-		HookRVA: func(root string) (uint32, error) {
-			point, err := aquarium.FindHook(root)
-			if err != nil {
-				return 0, err
-			}
-			return point.RVA, nil
-		},
+		Signature: aquarium.HookSignature,
 		Normalize: func(raw string) (Line, error) {
 			line, err := aquarium.NormalizeHookText(raw)
 			if err != nil {
@@ -100,13 +95,8 @@ func Detect(appID, root string) (Detection, bool) {
 		result.SourceMessage = "Live NeXAS hooking currently requires Linux and Steam Proton."
 		return result, true
 	}
-	if _, err := p.HookRVA(root); err != nil {
-		result.SourceStatus = "unsupported-hook"
-		result.SourceMessage = "The game build was recognized, but its NeXAS hook signature did not validate."
-		return result, true
-	}
 	result.SourceStatus = "native-auto"
-	result.SourceMessage = "Live NeXAS execution hook is enabled automatically while YomiRelay is running."
+	result.SourceMessage = "Live NeXAS execution hook is enabled automatically; its instruction signature is resolved from the loaded Proton process at runtime."
 	return result, true
 }
 

@@ -18,6 +18,7 @@ type Build struct {
 	Architecture  string `json:"architecture"`
 	SHA256        string `json:"sha256"`
 	Size          int64  `json:"size"`
+	ImageSize     uint32 `json:"imageSize"`
 	PETimestamp   uint32 `json:"peTimestamp"`
 	VerifiedBuild bool   `json:"verifiedBuild"`
 }
@@ -51,6 +52,9 @@ func Inspect(root string) (Build, error) {
 	optional, ok := f.OptionalHeader.(*pe.OptionalHeader32)
 	if !ok || f.Machine != pe.IMAGE_FILE_MACHINE_I386 {
 		return Build{}, fmt.Errorf("unsupported AQUARIUM PE architecture")
+	}
+	if optional.SizeOfImage == 0 || optional.SizeOfImage > 128<<20 {
+		return Build{}, fmt.Errorf("unsupported AQUARIUM PE image size")
 	}
 	directory := optional.DataDirectory[pe.IMAGE_DIRECTORY_ENTRY_DEBUG]
 	var debug []byte
@@ -92,5 +96,12 @@ func Inspect(root string) (Build, error) {
 		return Build{}, fmt.Errorf("AQUARIUM NeXAS binary fingerprint not found")
 	}
 	hash := fmt.Sprintf("%x", sha256.Sum256(data))
-	return Build{Architecture: "x86", SHA256: hash, Size: int64(len(data)), PETimestamp: f.TimeDateStamp, VerifiedBuild: hash == ExecutableSHA256}, nil
+	return Build{
+		Architecture:  "x86",
+		SHA256:        hash,
+		Size:          int64(len(data)),
+		ImageSize:     optional.SizeOfImage,
+		PETimestamp:   f.TimeDateStamp,
+		VerifiedBuild: hash == ExecutableSHA256,
+	}, nil
 }

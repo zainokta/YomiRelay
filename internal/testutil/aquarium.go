@@ -23,6 +23,7 @@ func Aquarium(t *testing.T) string {
 	binary.LittleEndian.PutUint16(b[134:], 1)
 	binary.LittleEndian.PutUint16(b[148:], 224)
 	binary.LittleEndian.PutUint16(b[152:], 0x10b)
+	binary.LittleEndian.PutUint32(b[152+56:], 0x3000) // SizeOfImage
 	binary.LittleEndian.PutUint32(b[152+92:], 16)
 	binary.LittleEndian.PutUint32(b[152+96+6*8:], 0x1000)
 	binary.LittleEndian.PutUint32(b[152+96+6*8+4:], 28)

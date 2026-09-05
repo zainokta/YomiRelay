@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
 	"yomirelay/internal/testutil"
 )
 
@@ -34,7 +35,7 @@ func TestInspectRequiresCorroboratingPEAndFiles(t *testing.T) {
 			if (err == nil) != tc.want {
 				t.Fatalf("Inspect = %+v, %v", info, err)
 			}
-			if tc.want && (info.Architecture != "x86" || info.SHA256 == "" || info.VerifiedBuild) {
+			if tc.want && (info.Architecture != "x86" || info.SHA256 == "" || info.ImageSize == 0 || info.VerifiedBuild) {
 				t.Fatalf("metadata = %+v", info)
 			}
 		})

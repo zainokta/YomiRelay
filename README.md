@@ -67,7 +67,7 @@ Native NeXAS sources publish directly into the internal dialogue pipeline. They 
 ```text
 main.go                         application entry point
 internal/app/                   application lifecycle and HTTP/UDP wiring
-internal/source/nexas/          generic NeXAS runtime and source profile registry
+internal/source/nexas/          generic NeXAS runtime, process observer, hook resolver, and source profile registry
 internal/source/nexas/aquarium/ AQUARIUM-specific build/signature/text profile
 internal/games/                 detected game registry
 internal/dialogue/              canonical bounded history
@@ -82,25 +82,70 @@ There is intentionally no `cmd/yomirelay-aquarium` helper. Adding another suppor
 
 YomiRelay discovers Steam roots and configured `steamapps/libraryfolders.vdf` / `appmanifest_*.acf` files. It does not recursively scan the whole disk.
 
-Ren'Py detection is based on game layout/runtime evidence. NeXAS detection is profile-driven and fail-closed: a registered game profile must validate its expected executable/build and hook signature before live hooking is enabled.
+Ren'Py detection is based on game layout/runtime evidence. NeXAS detection is profile-driven and fail-closed: a registered game profile must validate its expected executable/build before live hooking is enabled.
+
+The NeXAS instruction signature is intentionally **not** validated against the raw executable file during game discovery. The signature used by text-hooking tools describes the loaded process image. Under Wine/Proton, the final executable code visible at runtime can differ from the raw on-disk bytes, so YomiRelay resolves the signature only after the game process has been mapped.
 
 ## AQUARIUM live NeXAS hook
 
 For the currently verified AQUARIUM Steam build, YomiRelay:
 
 1. detects the installed game through Steam,
-2. validates the NeXAS-compatible executable fingerprint,
-3. validates the known hook signature,
-4. waits for `Aquarium.exe` under Steam Proton,
-5. attaches Linux `perf_event_open` execute breakpoints to the game threads,
-6. reads the text pointer from the sampled x86 register state,
-7. normalizes NeXAS control tags,
-8. coalesces progressive/typewriter updates,
-9. appends accepted dialogue directly to canonical Reader history.
+2. validates the NeXAS-compatible executable fingerprint and exact supported SHA-256,
+3. waits for `Aquarium.exe` under Steam Proton,
+4. reads only executable pages inside the loaded PE image while resolving the known NeXAS instruction signature,
+5. stops signature scanning as soon as exactly one runtime hook address is found,
+6. attaches Linux `perf_event_open` execute breakpoints to the game threads,
+7. reads the text pointer from the sampled x86 register state,
+8. normalizes NeXAS control tags,
+9. coalesces progressive/typewriter updates,
+10. appends accepted dialogue directly to canonical Reader history.
 
-The hook does not patch `Aquarium.exe`, inject a DLL, modify game files, or poll the process memory continuously. Hardware breakpoint file descriptors are owned by the YomiRelay process and disappear when YomiRelay exits.
+The runtime signature scan in step 4 is an **attachment-time operation only**. It is not the old dialogue memory scanner and it does not poll game text. Once the instruction address resolves, dialogue capture is event-driven through the execution breakpoint.
 
-If the executable hash/signature changes or kernel perf policy blocks the observer, YomiRelay fails closed and leaves the game untouched.
+The hook does not patch `Aquarium.exe`, inject a DLL, modify game files, or continuously scan process memory for dialogue. Hardware breakpoint file descriptors are owned by the YomiRelay process and disappear when YomiRelay exits.
+
+If the executable hash changes, the runtime signature resolves ambiguously, or kernel perf policy blocks the observer, YomiRelay fails closed and leaves the game untouched.
+
+### Why the signature is resolved at runtime
+
+An earlier YomiRelay build validated the NeXAS signature against the on-disk `Aquarium.exe`. That produced this false-negative state on the recognized Steam build:
+
+```text
+The game build was recognized, but its NeXAS hook signature did not validate.
+```
+
+That check was in the wrong layer. NeXAS text-hook signatures are process-memory signatures: the relevant instruction sequence should be searched after Wine/Proton has loaded the PE image. YomiRelay now accepts the verified build during discovery and resolves the hook address from the loaded executable image when AQUARIUM starts.
+
+This does **not** weaken build safety. The exact executable SHA-256 allowlist is still checked before the native source starts, and the runtime matcher still requires exactly one signature hit before any breakpoint is installed.
+
+### Expected logs
+
+Before the game starts:
+
+```text
+[nexas] AQUARIUM profile ready: sha256=... image-size=...
+[nexas] waiting for AQUARIUM Steam/Proton process
+```
+
+When the process appears, YomiRelay may briefly log:
+
+```text
+[nexas] waiting for AQUARIUM runtime hook signature in loaded process memory
+```
+
+After the signature becomes available:
+
+```text
+[nexas] resolved runtime hook: game=AQUARIUM pid=... rva=... address=...
+[nexas] attached execution hook: game=AQUARIUM pid=... address=...
+```
+
+If the `waiting for ... runtime hook signature` message repeats every 10 seconds and never resolves, send the full `[nexas]` logs back for the next signature adjustment.
+
+### Linux permissions
+
+The live hook relies on Linux `perf_event_open` and same-user process memory reads. YomiRelay does not change kernel security settings automatically.
 
 Useful diagnostics:
 
@@ -109,13 +154,7 @@ cat /proc/sys/kernel/perf_event_paranoid
 uname -a
 ```
 
-Expected logs include:
-
-```text
-[nexas] AQUARIUM hook ready: ...
-[nexas] waiting for AQUARIUM Steam/Proton process
-[nexas] attached execution hook: game=AQUARIUM pid=... address=...
-```
+If the runtime address resolves but breakpoint creation fails with `perf hook permission denied`, the signature itself worked; the remaining issue is local perf policy.
 
 ## Reader / Yomitan
 
@@ -149,14 +188,16 @@ Both addresses must remain loopback addresses.
 
 1. `git pull`
 2. `./run.sh`
-3. open YomiRelay Reader and select AQUARIUM
-4. start AQUARIUM through Steam/Proton
-5. confirm the `[nexas] attached execution hook` log appears
-6. advance Japanese story dialogue for at least 20 lines
-7. confirm lines arrive automatically and in event order
-8. confirm Yomitan can scan the rendered Japanese text
-9. check for duplicate/typewriter spam, missing narration, or backlog/menu pollution
-10. stop YomiRelay while AQUARIUM remains open and confirm the game continues normally
-11. start YomiRelay again and confirm capture resumes after the next dialogue event
+3. confirm AQUARIUM is shown as `NeXAS` / `Live native hook (automatic)` rather than `Unavailable`
+4. open YomiRelay Reader and select AQUARIUM
+5. start AQUARIUM through Steam/Proton
+6. confirm `[nexas] resolved runtime hook` appears
+7. confirm `[nexas] attached execution hook` appears
+8. advance Japanese story dialogue for at least 20 lines
+9. confirm lines arrive automatically and in event order
+10. confirm Yomitan can scan the rendered Japanese text
+11. check for duplicate/typewriter spam, missing narration, or backlog/menu pollution
+12. stop YomiRelay while AQUARIUM remains open and confirm the game continues normally
+13. start YomiRelay again and confirm capture resumes after the next dialogue event
 
-If a real-game test shows a mismatch, report the `[nexas]` logs and the behavior observed in Reader.
+For a failed test, include every `[nexas]` log line. The most useful distinction is whether failure happens before runtime signature resolution, while creating the perf breakpoint, or after attachment with no dialogue events.

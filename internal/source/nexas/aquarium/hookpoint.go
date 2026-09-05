@@ -15,9 +15,9 @@ type HookPoint struct {
 	RVA        uint32
 }
 
-// This instruction shape was independently validated against AQUARIUM's x86
-// text path. Relative call and object-field displacements are intentionally
-// wildcarded so the matcher describes instructions rather than absolute addresses.
+// This instruction shape comes from the AQUARIUM NeXAS text path. Relative
+// call and object-field displacements are intentionally wildcarded so the
+// matcher describes instructions rather than absolute addresses.
 var hookPattern = []byte{
 	0x50,
 	0xe8, 0, 0, 0, 0,
@@ -32,6 +32,17 @@ var hookMask = []byte{
 	0xff, 0xff, 0xff,
 }
 
+// HookSignature returns defensive copies of the runtime instruction pattern.
+// YomiRelay resolves this signature from the loaded PE image after Proton has
+// mapped the process. The on-disk executable may not contain the final runtime
+// instruction bytes if the engine loader transforms code while starting.
+func HookSignature() (pattern, mask []byte) {
+	return append([]byte(nil), hookPattern...), append([]byte(nil), hookMask...)
+}
+
+// FindHook searches the on-disk PE and is retained as a fixture/diagnostic
+// helper. Runtime hooking does not depend on this result; the live source scans
+// the loaded module memory instead.
 func FindHook(root string) (HookPoint, error) {
 	path := filepath.Join(root, "Aquarium.exe")
 	data, err := os.ReadFile(path)
@@ -67,10 +78,10 @@ func FindHook(root string) (HookPoint, error) {
 		}
 	}
 	if len(found) == 0 {
-		return HookPoint{}, fmt.Errorf("AQUARIUM NeXAS live-hook signature was not found")
+		return HookPoint{}, fmt.Errorf("AQUARIUM NeXAS live-hook signature was not found in the on-disk PE")
 	}
 	if len(found) != 1 {
-		return HookPoint{}, fmt.Errorf("AQUARIUM NeXAS live-hook signature is ambiguous: %d matches", len(found))
+		return HookPoint{}, fmt.Errorf("AQUARIUM NeXAS live-hook signature is ambiguous in the on-disk PE: %d matches", len(found))
 	}
 	return found[0], nil
 }

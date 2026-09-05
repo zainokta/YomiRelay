@@ -35,11 +35,11 @@ func Start(ctx context.Context, game Game, sink Sink, logger *log.Logger) error 
 	if !build.Verified {
 		return fmt.Errorf("unsupported %s executable version: %s", game.Name, build.Hash)
 	}
-	hookRVA, err := p.HookRVA(root)
-	if err != nil {
-		return err
+	pattern, mask := p.Signature()
+	if len(pattern) == 0 || len(pattern) != len(mask) {
+		return fmt.Errorf("invalid NeXAS hook signature profile for %s", game.Name)
 	}
-	logger.Printf("[nexas] %s hook ready: sha256=%s rva=0x%x", game.Name, build.Hash, hookRVA)
+	logger.Printf("[nexas] %s profile ready: sha256=%s image-size=0x%x", game.Name, build.Hash, build.ImageSize)
 
 	waitingLogged := false
 	for ctx.Err() == nil {
@@ -58,7 +58,20 @@ func Start(ctx context.Context, game Game, sink Sink, logger *log.Logger) error 
 			return err
 		}
 		waitingLogged = false
-		address := process.ImageBase + uint64(hookRVA)
+
+		address, err := waitForRuntimeHook(ctx, process, build.ImageSize, pattern, mask, game.Name, logger)
+		if ctx.Err() != nil {
+			return nil
+		}
+		if errors.Is(err, errProcessExited) || os.IsNotExist(err) {
+			logger.Printf("[nexas] %s exited before the runtime hook resolved; waiting for restart", game.Name)
+			continue
+		}
+		if err != nil {
+			return err
+		}
+		rva := address - process.ImageBase
+		logger.Printf("[nexas] resolved runtime hook: game=%s pid=%d rva=0x%x address=0x%x", game.Name, process.PID, rva, address)
 		logger.Printf("[nexas] attached execution hook: game=%s pid=%d address=0x%x", game.Name, process.PID, address)
 		err = observeProcess(ctx, process.PID, address, p.Normalize, sink)
 		if ctx.Err() != nil {
@@ -73,6 +86,33 @@ func Start(ctx context.Context, game Game, sink Sink, logger *log.Logger) error 
 		}
 	}
 	return nil
+}
+
+func waitForRuntimeHook(ctx context.Context, process processInfo, imageSize uint32, pattern, mask []byte, gameName string, logger *log.Logger) (uint64, error) {
+	announced := false
+	lastStatus := time.Time{}
+	for ctx.Err() == nil {
+		address, err := resolveRuntimeHook(process.PID, process.ImageBase, imageSize, pattern, mask)
+		if err == nil {
+			return address, nil
+		}
+		if !errors.Is(err, errRuntimeHookNotFound) {
+			return 0, err
+		}
+		now := time.Now()
+		if !announced || now.Sub(lastStatus) >= 10*time.Second {
+			logger.Printf("[nexas] waiting for %s runtime hook signature in loaded process memory", gameName)
+			announced = true
+			lastStatus = now
+		}
+		if _, statErr := os.Stat(fmt.Sprintf("/proc/%d", process.PID)); os.IsNotExist(statErr) {
+			return 0, errProcessExited
+		}
+		if !sleepContext(ctx, 250*time.Millisecond) {
+			return 0, ctx.Err()
+		}
+	}
+	return 0, ctx.Err()
 }
 
 func observeProcess(ctx context.Context, pid int, address uint64, normalize func(string) (Line, error), sink Sink) error {
