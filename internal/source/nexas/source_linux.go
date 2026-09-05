@@ -39,7 +39,7 @@ func Start(ctx context.Context, game Game, sink Sink, logger *log.Logger) error 
 	if len(pattern) == 0 || len(pattern) != len(mask) {
 		return fmt.Errorf("invalid NeXAS hook signature profile for %s", game.Name)
 	}
-	logger.Printf("[nexas] %s profile ready: sha256=%s image-size=0x%x", game.Name, build.Hash, build.ImageSize)
+	logger.Printf("[nexas] %s profile ready: sha256=%s image-size=0x%x preferred-rva=0x%x", game.Name, build.Hash, build.ImageSize, p.PreferredHookRVA)
 
 	waitingLogged := false
 	for ctx.Err() == nil {
@@ -59,7 +59,7 @@ func Start(ctx context.Context, game Game, sink Sink, logger *log.Logger) error 
 		}
 		waitingLogged = false
 
-		address, err := waitForRuntimeHook(ctx, process, build.ImageSize, pattern, mask, game.Name, logger)
+		address, err := waitForRuntimeHook(ctx, process, build.ImageSize, pattern, mask, p.PreferredHookRVA, game.Name, logger)
 		if ctx.Err() != nil {
 			return nil
 		}
@@ -88,11 +88,11 @@ func Start(ctx context.Context, game Game, sink Sink, logger *log.Logger) error 
 	return nil
 }
 
-func waitForRuntimeHook(ctx context.Context, process processInfo, imageSize uint32, pattern, mask []byte, gameName string, logger *log.Logger) (uint64, error) {
+func waitForRuntimeHook(ctx context.Context, process processInfo, imageSize uint32, pattern, mask []byte, preferredRVA uint32, gameName string, logger *log.Logger) (uint64, error) {
 	announced := false
 	lastStatus := time.Time{}
 	for ctx.Err() == nil {
-		address, err := resolveRuntimeHook(process.PID, process.ImageBase, imageSize, pattern, mask)
+		address, err := resolveRuntimeHook(process.PID, process.ImageBase, imageSize, pattern, mask, preferredRVA)
 		if err == nil {
 			return address, nil
 		}

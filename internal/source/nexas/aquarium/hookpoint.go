@@ -15,6 +15,12 @@ type HookPoint struct {
 	RVA        uint32
 }
 
+// PreferredHookRVA is the intended NeXAS2 hook site for the exact verified
+// AQUARIUM Steam build. The real Proton image exposes two copies of the same
+// short instruction signature; the upstream NeXAS2 search selects the first
+// match, which is this lower RVA.
+const PreferredHookRVA uint32 = 0x279446
+
 // This instruction shape comes from the AQUARIUM NeXAS2 text path used by the
 // verified Steam build. Only the relative call displacement is wildcarded.
 //
@@ -24,9 +30,6 @@ type HookPoint struct {
 //   call rel32
 //   mov eax,[esi+000000A4]
 //   mov eax,[eax-04]
-//
-// Keeping the +0xA4 object-field displacement exact is important: a looser
-// matcher produced two valid-looking hits in the real Proton process.
 var hookPattern = []byte{
 	0x50,
 	0xe8, 0, 0, 0, 0,
@@ -42,16 +45,12 @@ var hookMask = []byte{
 }
 
 // HookSignature returns defensive copies of the runtime instruction pattern.
-// YomiRelay resolves this signature from the loaded PE image after Proton has
-// mapped the process. The on-disk executable may not contain the final runtime
-// instruction bytes if the engine loader transforms code while starting.
 func HookSignature() (pattern, mask []byte) {
 	return append([]byte(nil), hookPattern...), append([]byte(nil), hookMask...)
 }
 
 // FindHook searches the on-disk PE and is retained as a fixture/diagnostic
-// helper. Runtime hooking does not depend on this result; the live source scans
-// the loaded module memory instead.
+// helper. Runtime hooking resolves the loaded process image instead.
 func FindHook(root string) (HookPoint, error) {
 	path := filepath.Join(root, "Aquarium.exe")
 	data, err := os.ReadFile(path)

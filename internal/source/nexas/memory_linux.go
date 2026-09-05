@@ -21,7 +21,7 @@ type memoryRegion struct {
 	End   uint64
 }
 
-func resolveRuntimeHook(pid int, imageBase uint64, imageSize uint32, pattern, mask []byte) (uint64, error) {
+func resolveRuntimeHook(pid int, imageBase uint64, imageSize uint32, pattern, mask []byte, preferredRVA uint32) (uint64, error) {
 	if imageSize == 0 || imageSize > 128<<20 {
 		return 0, fmt.Errorf("invalid NeXAS image size 0x%x", imageSize)
 	}
@@ -57,25 +57,39 @@ func resolveRuntimeHook(pid int, imageBase uint64, imageSize uint32, pattern, ma
 			hits[address] = struct{}{}
 		}
 	}
+	return selectRuntimeHook(hits, imageBase, preferredRVA)
+}
+
+func selectRuntimeHook(hits map[uint64]struct{}, imageBase uint64, preferredRVA uint32) (uint64, error) {
 	if len(hits) == 0 {
 		return 0, errRuntimeHookNotFound
 	}
-	if len(hits) != 1 {
-		addresses := make([]uint64, 0, len(hits))
+	if preferredRVA != 0 {
+		preferred := imageBase + uint64(preferredRVA)
+		if _, ok := hits[preferred]; ok {
+			return preferred, nil
+		}
+		return 0, fmt.Errorf("preferred NeXAS runtime hook rva=0x%x was not found; candidates: %s", preferredRVA, formatRuntimeHookCandidates(hits, imageBase))
+	}
+	if len(hits) == 1 {
 		for address := range hits {
-			addresses = append(addresses, address)
+			return address, nil
 		}
-		sort.Slice(addresses, func(i, j int) bool { return addresses[i] < addresses[j] })
-		parts := make([]string, 0, len(addresses))
-		for _, address := range addresses {
-			parts = append(parts, fmt.Sprintf("rva=0x%x", address-imageBase))
-		}
-		return 0, fmt.Errorf("NeXAS runtime hook signature is ambiguous: %d matches (%s)", len(addresses), strings.Join(parts, ", "))
 	}
+	return 0, fmt.Errorf("NeXAS runtime hook signature is ambiguous: %d matches (%s)", len(hits), formatRuntimeHookCandidates(hits, imageBase))
+}
+
+func formatRuntimeHookCandidates(hits map[uint64]struct{}, imageBase uint64) string {
+	addresses := make([]uint64, 0, len(hits))
 	for address := range hits {
-		return address, nil
+		addresses = append(addresses, address)
 	}
-	return 0, errRuntimeHookNotFound
+	sort.Slice(addresses, func(i, j int) bool { return addresses[i] < addresses[j] })
+	parts := make([]string, 0, len(addresses))
+	for _, address := range addresses {
+		parts = append(parts, fmt.Sprintf("rva=0x%x", address-imageBase))
+	}
+	return strings.Join(parts, ", ")
 }
 
 func executableModuleRegions(maps string, imageBase, imageEnd uint64) []memoryRegion {

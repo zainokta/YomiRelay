@@ -2,7 +2,10 @@
 
 package nexas
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestFindMaskedPatternOffsetsSupportsWildcards(t *testing.T) {
 	pattern := []byte{0x50, 0xe8, 0, 0, 0, 0, 0x8b, 0x86}
@@ -21,6 +24,30 @@ func TestFindMaskedPatternOffsetsFindsAmbiguousMatches(t *testing.T) {
 	got := findMaskedPatternOffsets(data, pattern, mask)
 	if len(got) != 2 || got[0] != 0 || got[1] != 4 {
 		t.Fatalf("offsets = %#v", got)
+	}
+}
+
+func TestSelectRuntimeHookUsesPreferredProfileRVA(t *testing.T) {
+	const base = 0x40000000
+	hits := map[uint64]struct{}{
+		base + 0x279446: {},
+		base + 0x27b86e: {},
+	}
+	got, err := selectRuntimeHook(hits, base, 0x279446)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != base+0x279446 {
+		t.Fatalf("hook = 0x%x", got)
+	}
+}
+
+func TestSelectRuntimeHookFailsWhenPreferredProfileRVADisappears(t *testing.T) {
+	const base = 0x40000000
+	hits := map[uint64]struct{}{base + 0x27b86e: {}}
+	_, err := selectRuntimeHook(hits, base, 0x279446)
+	if err == nil || !strings.Contains(err.Error(), "rva=0x279446") || !strings.Contains(err.Error(), "rva=0x27b86e") {
+		t.Fatalf("error = %v", err)
 	}
 }
 

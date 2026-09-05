@@ -42,17 +42,19 @@ type buildInfo struct {
 }
 
 type profile struct {
-	AppID      string
-	Executable string
-	Inspect    func(string) (buildInfo, error)
-	Signature  func() (pattern, mask []byte)
-	Normalize  func(string) (Line, error)
+	AppID            string
+	Executable       string
+	PreferredHookRVA uint32
+	Inspect          func(string) (buildInfo, error)
+	Signature        func() (pattern, mask []byte)
+	Normalize        func(string) (Line, error)
 }
 
 var profiles = map[string]profile{
 	aquarium.AppID: {
-		AppID:      aquarium.AppID,
-		Executable: "Aquarium.exe",
+		AppID:            aquarium.AppID,
+		Executable:       "Aquarium.exe",
+		PreferredHookRVA: aquarium.PreferredHookRVA,
 		Inspect: func(root string) (buildInfo, error) {
 			build, err := aquarium.Inspect(root)
 			if err != nil {
@@ -96,7 +98,7 @@ func Detect(appID, root string) (Detection, bool) {
 		return result, true
 	}
 	result.SourceStatus = "native-auto"
-	result.SourceMessage = "Live NeXAS execution hook is enabled automatically; its instruction signature is resolved from the loaded Proton process at runtime."
+	result.SourceMessage = "Live NeXAS execution hook is enabled automatically; its build-specific runtime hook site is resolved from the loaded Proton process."
 	return result, true
 }
 
