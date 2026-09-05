@@ -57,8 +57,11 @@ export function removeHook(appID: string): Promise<void> {
   return request<void>(`/api/games/${encodeURIComponent(appID)}/hook`, { method: "DELETE" });
 }
 
-export function listDialogues(gameID: string): Promise<Dialogue[]> {
-  return request<Dialogue[]>(`/api/dialogues?gameId=${encodeURIComponent(gameID)}`);
+export async function listDialogues(gameID: string): Promise<Dialogue[]> {
+  const value = await request<Dialogue[] | null>(`/api/dialogues?gameId=${encodeURIComponent(gameID)}`);
+  if (value == null) return [];
+  if (!Array.isArray(value)) throw new Error("Dialogue history response is invalid.");
+  return value;
 }
 
 export function clearDialogues(gameID: string): Promise<void> {

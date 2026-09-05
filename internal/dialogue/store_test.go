@@ -22,6 +22,13 @@ func TestStoreBoundsHistoryPerGame(t *testing.T) {
 	}
 }
 
+func TestStoreListReturnsEmptyArrayShape(t *testing.T) {
+	store := NewStore(10, time.Now)
+	if got := store.List("missing"); got == nil || len(got) != 0 {
+		t.Fatalf("empty history = %#v, want non-nil empty slice", got)
+	}
+}
+
 func TestStoreClearDoesNotAffectOtherGame(t *testing.T) {
 	store := NewStore(10, time.Now)
 	store.Append(Dialogue{GameID: "111", Text: "a"})

@@ -6,9 +6,11 @@ import (
 )
 
 const (
-	settleWindow    = 75 * time.Millisecond
-	progressWindow  = 300 * time.Millisecond
-	duplicateWindow = time.Second
+	settleWindow     = 75 * time.Millisecond
+	progressWindow   = 300 * time.Millisecond
+	duplicateWindow  = time.Second
+	fragmentWindow   = 2 * time.Second
+	recentKeepWindow = 10 * time.Second
 )
 
 type pendingLine struct {
@@ -16,9 +18,15 @@ type pendingLine struct {
 	lastSeen time.Time
 }
 
+type recentLine struct {
+	line Line
+	seen time.Time
+}
+
 type lineCoalescer struct {
-	pending *pendingLine
-	recent  map[string]time.Time
+	pending     *pendingLine
+	recent      map[string]time.Time
+	recentLines []recentLine
 }
 
 func newLineCoalescer() *lineCoalescer {
@@ -26,6 +34,10 @@ func newLineCoalescer() *lineCoalescer {
 }
 
 func (c *lineCoalescer) Add(line Line, now time.Time) []Line {
+	c.prune(now)
+	if c.isRecentTrailingFragment(line, now) {
+		return nil
+	}
 	if c.pending == nil {
 		c.pending = &pendingLine{line: line, lastSeen: now}
 		return nil
@@ -38,6 +50,9 @@ func (c *lineCoalescer) Add(line Line, now time.Time) []Line {
 		return nil
 	}
 	ready := c.finish(now)
+	if c.isRecentTrailingFragment(line, now) {
+		return ready
+	}
 	c.pending = &pendingLine{line: line, lastSeen: now}
 	return ready
 }
@@ -60,14 +75,45 @@ func (c *lineCoalescer) finish(now time.Time) []Line {
 		return nil
 	}
 	c.recent[key] = now
-	for key, seen := range c.recent {
-		if now.Sub(seen) > 10*duplicateWindow {
-			delete(c.recent, key)
-		}
-	}
+	c.recentLines = append(c.recentLines, recentLine{line: line, seen: now})
+	c.prune(now)
 	return []Line{line}
 }
 
+func (c *lineCoalescer) isRecentTrailingFragment(line Line, now time.Time) bool {
+	for i := len(c.recentLines) - 1; i >= 0; i-- {
+		recent := c.recentLines[i]
+		if now.Sub(recent.seen) > fragmentWindow {
+			break
+		}
+		if recent.line.Speaker != line.Speaker || recent.line.Text == line.Text {
+			continue
+		}
+		if len([]rune(line.Text)) < len([]rune(recent.line.Text)) && strings.HasSuffix(recent.line.Text, line.Text) {
+			return true
+		}
+	}
+	return false
+}
+
+func (c *lineCoalescer) prune(now time.Time) {
+	for key, seen := range c.recent {
+		if now.Sub(seen) > recentKeepWindow {
+			delete(c.recent, key)
+		}
+	}
+	cut := 0
+	for cut < len(c.recentLines) && now.Sub(c.recentLines[cut].seen) > fragmentWindow {
+		cut++
+	}
+	if cut > 0 {
+		copy(c.recentLines, c.recentLines[cut:])
+		c.recentLines = c.recentLines[:len(c.recentLines)-cut]
+	}
+}
+
 func relatedText(left, right string) bool {
-	return left == right || strings.HasPrefix(left, right) || strings.HasPrefix(right, left)
+	return left == right ||
+		strings.HasPrefix(left, right) || strings.HasPrefix(right, left) ||
+		strings.HasSuffix(left, right) || strings.HasSuffix(right, left)
 }

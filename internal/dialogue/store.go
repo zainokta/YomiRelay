@@ -49,7 +49,9 @@ func (s *Store) Append(d Dialogue) {
 
 func (s *Store) List(gameID string) []Dialogue {
 	s.mu.RLock()
-	items := append([]Dialogue(nil), s.entries[gameID]...)
+	source := s.entries[gameID]
+	items := make([]Dialogue, len(source))
+	copy(items, source)
 	s.mu.RUnlock()
 	return items
 }
