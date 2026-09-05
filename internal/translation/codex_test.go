@@ -22,19 +22,36 @@ func TestParseResultAcceptsExactSegments(t *testing.T) {
 	}
 }
 
-func TestParseResultRejectsSourceMismatch(t *testing.T) {
-	_, err := ParseResult(validSource, []byte(`{"translation":"The cafe.","segments":[{"text":"カフェ","kana":"かふぇ","meaning":"cafe"}]}`))
-	if !errors.Is(err, ErrUnavailable) {
-		t.Fatalf("error = %v, want ErrUnavailable", err)
+func TestParseResultFallsBackWhenSegmentsDoNotReconstructSource(t *testing.T) {
+	got, err := ParseResult(validSource, []byte(`{"translation":"The cafe.","segments":[{"text":"カフェ","kana":"かふぇ","meaning":"cafe"}]}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got.Segments) != 1 || got.Segments[0].Text != validSource || got.Segments[0].Kana != "" || got.Segments[0].Meaning != "" {
+		t.Fatalf("fallback = %#v", got.Segments)
 	}
 }
 
-func TestParseResultRejectsMalformedAndUnglossedWordOutput(t *testing.T) {
+func TestParseResultSanitizesEmptyAndIncompleteGlossSegments(t *testing.T) {
+	got, err := ParseResult(validSource, []byte(`{"translation":"The cafe.","segments":[{"text":"","kana":"","meaning":""},{"text":"カフェ","kana":"","meaning":"cafe"},{"text":"。","kana":"period","meaning":"period"}]}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got.Segments) != 2 {
+		t.Fatalf("segments = %#v", got.Segments)
+	}
+	if got.Segments[0].Text != "カフェ" || got.Segments[0].Kana != "" || got.Segments[0].Meaning != "" {
+		t.Fatalf("word segment = %#v", got.Segments[0])
+	}
+	if got.Segments[1].Text != "。" || got.Segments[1].Kana != "" || got.Segments[1].Meaning != "" {
+		t.Fatalf("punctuation segment = %#v", got.Segments[1])
+	}
+}
+
+func TestParseResultRejectsMalformedOrMissingTranslation(t *testing.T) {
 	cases := []string{
 		"not json",
-		`{"translation":"","segments":[{"text":"カフェ","kana":"かふぇ","meaning":"cafe"}]}`,
-		`{"translation":"Cafe.","segments":[]}`,
-		`{"translation":"Cafe.","segments":[{"text":"カフェ。","kana":"","meaning":""}]}`,
+		`{"translation":"","segments":[{"text":"カフェ。","kana":"","meaning":""}]}`,
 	}
 	for _, data := range cases {
 		if _, err := ParseResult(validSource, []byte(data)); !errors.Is(err, ErrUnavailable) {
@@ -85,7 +102,7 @@ func TestClientRetriesFailedTurnWithFreshAppServer(t *testing.T) {
 	}
 }
 
-func TestClientRetriesInvalidModelOutput(t *testing.T) {
+func TestClientRetriesInvalidJSONModelOutput(t *testing.T) {
 	fake := &fakeAppServer{responses: []string{"not json", validOutput}}
 	client := newFakeClient(fake)
 	if _, err := client.Translate(context.Background(), "111", validSource); err != nil {
@@ -96,6 +113,24 @@ func TestClientRetriesInvalidModelOutput(t *testing.T) {
 	fake.mu.Unlock()
 	if starts != 2 || waits != 2 {
 		t.Fatalf("starts=%d waits=%d, want 2/2", starts, waits)
+	}
+}
+
+func TestClientDoesNotRetryRecoverableGlossOutput(t *testing.T) {
+	fake := &fakeAppServer{responses: []string{`{"translation":"The cafe.","segments":[{"text":"カフェ","kana":"","meaning":"cafe"}]}`}}
+	client := newFakeClient(fake)
+	got, err := client.Translate(context.Background(), "111", validSource)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Translation != "The cafe." || len(got.Segments) != 1 || got.Segments[0].Text != validSource {
+		t.Fatalf("result = %#v", got)
+	}
+	fake.mu.Lock()
+	starts, waits := fake.starts, fake.waits
+	fake.mu.Unlock()
+	if starts != 1 || waits != 1 {
+		t.Fatalf("starts=%d waits=%d, want 1/1", starts, waits)
 	}
 }
 

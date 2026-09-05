@@ -169,6 +169,10 @@ Reader dialogue is ordinary DOM text with Japanese language metadata. YomiRelay 
 
 Dialogue history is kept in memory and bounded per game. `Clear History` clears only the selected game's canonical history.
 
+### Translation and glosses
+
+English translation is the required model output; per-word kana/meaning glosses are best-effort enrichment. YomiRelay keeps translation requests serial, caches successful results, and retries transient app-server/model failures. If the model returns a usable English translation but malformed gloss segmentation (for example an empty segment, a missing reading/meaning, or segments that do not exactly reconstruct the Japanese source), YomiRelay now returns the translation instead of failing the whole request. Recoverable gloss fields are cleared, and a source-preserving non-glossed segment is used when reconstruction is unsafe. This keeps the Japanese DOM byte-for-byte faithful for Yomitan while avoiding unnecessary HTTP 503 responses.
+
 ## Ren'Py hooks
 
 Ren'Py hook installation writes only the managed YomiRelay `.rpy` hook inside the detected game's `game/` directory. Existing unmanaged game scripts are not overwritten. Restart a Ren'Py game after installing the hook.
