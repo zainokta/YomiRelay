@@ -1,4 +1,4 @@
-package main
+package app
 
 import (
 	"context"
@@ -20,6 +20,7 @@ import (
 	"yomirelay/internal/hook"
 	"yomirelay/internal/platform"
 	"yomirelay/internal/receiver"
+	"yomirelay/internal/source/nexas"
 	"yomirelay/internal/steam"
 	"yomirelay/internal/translation"
 	"yomirelay/internal/web"
@@ -71,6 +72,19 @@ func RootHandler(apiHandler, staticHandler http.Handler) http.Handler {
 	})
 }
 
+func Main(getenv func(string) string, logger *log.Logger) error {
+	if logger == nil {
+		logger = log.Default()
+	}
+	config, err := ConfigFromEnv(getenv)
+	if err != nil {
+		return err
+	}
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+	return Run(ctx, config, logger)
+}
+
 func Run(ctx context.Context, config Config, logger *log.Logger) error {
 	if logger == nil {
 		logger = log.Default()
@@ -82,25 +96,29 @@ func Run(ctx context.Context, config Config, logger *log.Logger) error {
 	}
 	logger.Printf("Steam roots: %v", roots)
 	discover := func() ([]steam.Installation, error) { return steam.Discover(roots) }
-	manager := hook.Manager{}
+	hookManager := hook.Manager{}
 	store := dialogue.NewStore(1000, time.Now)
 	broker := events.NewBroker(64)
-	registry := games.NewRegistry(discover, manager.Installed, store.Activity)
+	registry := games.NewRegistry(discover, hookManager.Installed, store.Activity)
 	if err := registry.Refresh(); err != nil {
 		return fmt.Errorf("discover games: %w", err)
 	}
 	logger.Printf("discovered %d game installations", len(registry.List()))
-	codex := translation.New("codex")
-	defer func() { _ = codex.Close() }()
-	apiHandler := api.New(api.Dependencies{Games: registry, Hooks: manager, Store: store, Broker: broker, Translator: codex.Translate, Logger: logger})
-	listener, err := receiver.Listen(ctx, config.UDPAddr, func(value dialogue.Dialogue) {
+
+	publish := func(value dialogue.Dialogue) {
 		store.Append(value)
 		broker.Publish(value)
-	})
+	}
+
+	codex := translation.New("codex")
+	defer func() { _ = codex.Close() }()
+	apiHandler := api.New(api.Dependencies{Games: registry, Hooks: hookManager, Store: store, Broker: broker, Translator: codex.Translate, Logger: logger})
+	listener, err := receiver.Listen(ctx, config.UDPAddr, publish)
 	if err != nil {
 		return err
 	}
-	startNativeSources(ctx, registry, config.UDPAddr, logger)
+	startNativeSources(ctx, registry, publish, logger)
+
 	server := &http.Server{Addr: config.HTTPAddr, Handler: RootHandler(apiHandler, web.Handler())}
 	serverErr := make(chan error, 1)
 	listenerErr := make(chan error, 1)
@@ -132,15 +150,30 @@ func Run(ctx context.Context, config Config, logger *log.Logger) error {
 	}
 }
 
-func main() {
-	logger := log.New(os.Stderr, "[backend] ", log.LstdFlags)
-	config, err := ConfigFromEnv(os.Getenv)
-	if err != nil {
-		logger.Fatal(err)
-	}
-	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
-	defer stop()
-	if err := Run(ctx, config, logger); err != nil {
-		logger.Fatal(err)
+func startNativeSources(ctx context.Context, registry *games.Registry, publish func(dialogue.Dialogue), logger *log.Logger) {
+	for _, game := range registry.List() {
+		if game.Engine != "nexas" || game.SourceStatus != "native-auto" {
+			continue
+		}
+		game := game
+		go func() {
+			err := nexas.Start(ctx, nexas.Game{
+				AppID:       game.AppID,
+				Name:        game.Name,
+				InstallPath: game.InstallPath,
+			}, func(event nexas.Event) {
+				publish(dialogue.Dialogue{
+					GameID:    game.AppID,
+					GameName:  game.Name,
+					Engine:    "nexas",
+					Speaker:   event.Speaker,
+					Text:      event.Text,
+					Timestamp: event.Timestamp,
+				})
+			}, logger)
+			if err != nil && ctx.Err() == nil {
+				logger.Printf("[nexas] %s source stopped: %v", game.Name, err)
+			}
+		}()
 	}
 }

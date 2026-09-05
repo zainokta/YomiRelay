@@ -1,10 +1,8 @@
-package main
+package nexas
 
 import (
 	"strings"
 	"time"
-
-	"yomirelay/internal/source/aquarium"
 )
 
 const (
@@ -14,7 +12,7 @@ const (
 )
 
 type pendingLine struct {
-	line     aquarium.Line
+	line     Line
 	lastSeen time.Time
 }
 
@@ -27,7 +25,7 @@ func newLineCoalescer() *lineCoalescer {
 	return &lineCoalescer{recent: make(map[string]time.Time)}
 }
 
-func (c *lineCoalescer) Add(line aquarium.Line, now time.Time) []aquarium.Line {
+func (c *lineCoalescer) Add(line Line, now time.Time) []Line {
 	if c.pending == nil {
 		c.pending = &pendingLine{line: line, lastSeen: now}
 		return nil
@@ -44,14 +42,14 @@ func (c *lineCoalescer) Add(line aquarium.Line, now time.Time) []aquarium.Line {
 	return ready
 }
 
-func (c *lineCoalescer) FlushDue(now time.Time) []aquarium.Line {
+func (c *lineCoalescer) FlushDue(now time.Time) []Line {
 	if c.pending == nil || now.Sub(c.pending.lastSeen) < settleWindow {
 		return nil
 	}
 	return c.finish(now)
 }
 
-func (c *lineCoalescer) finish(now time.Time) []aquarium.Line {
+func (c *lineCoalescer) finish(now time.Time) []Line {
 	if c.pending == nil {
 		return nil
 	}
@@ -67,7 +65,7 @@ func (c *lineCoalescer) finish(now time.Time) []aquarium.Line {
 			delete(c.recent, key)
 		}
 	}
-	return []aquarium.Line{line}
+	return []Line{line}
 }
 
 func relatedText(left, right string) bool {

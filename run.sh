@@ -9,6 +9,7 @@ for command_name in go node npm; do
     exit 1
   fi
 done
+
 NODE_RAW="$(node --version)"
 NODE_VERSION="${NODE_RAW#v}"
 if [[ ! "$NODE_VERSION" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+) ]]; then
@@ -25,10 +26,6 @@ cd "$ROOT_DIR/frontend"
 if [[ ! -d node_modules ]]; then
   npm ci
 fi
-
-mkdir -p "$ROOT_DIR/dist"
-printf '[native] building AQUARIUM NeXAS hook helper\n'
-( cd "$ROOT_DIR" && go build -o "$ROOT_DIR/dist/yomirelay-aquarium" ./cmd/yomirelay-aquarium )
 
 BACKEND_PID=""
 FRONTEND_PID=""
@@ -49,12 +46,8 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
-printf '[backend] starting Go server\n'
-(
-  cd "$ROOT_DIR"
-  export YOMIRELAY_AQUARIUM_HELPER="$ROOT_DIR/dist/yomirelay-aquarium"
-  exec go run ./cmd/yomirelay
-) &
+printf '[backend] starting YomiRelay\n'
+( cd "$ROOT_DIR" && exec go run . ) &
 BACKEND_PID=$!
 printf '[frontend] starting Vite server\n'
 ( cd "$ROOT_DIR/frontend" && exec npm run dev ) &

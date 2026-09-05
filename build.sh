@@ -9,6 +9,7 @@ for command_name in go node npm; do
     exit 1
   fi
 done
+
 NODE_RAW="$(node --version)"
 NODE_VERSION="${NODE_RAW#v}"
 if [[ ! "$NODE_VERSION" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+) ]]; then
@@ -26,10 +27,9 @@ if [[ ! -d node_modules ]]; then
   npm ci
 fi
 npm run build
+
 cd "$ROOT_DIR"
 go test ./...
 mkdir -p dist
-go build -o dist/yomirelay ./cmd/yomirelay
-go build -o dist/yomirelay-aquarium ./cmd/yomirelay-aquarium
+go build -o dist/yomirelay .
 printf 'Built: %s\n' "$ROOT_DIR/dist/yomirelay"
-printf 'Built native hook helper: %s\n' "$ROOT_DIR/dist/yomirelay-aquarium"

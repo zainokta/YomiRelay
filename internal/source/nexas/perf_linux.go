@@ -1,6 +1,6 @@
 //go:build linux
 
-package main
+package nexas
 
 import (
 	"bytes"
@@ -46,7 +46,7 @@ func newPerfHook(pid int, address uint64) (*perfHook, error) {
 		return nil, err
 	}
 	if len(h.events) == 0 {
-		return nil, fmt.Errorf("no AQUARIUM threads could be hooked")
+		return nil, fmt.Errorf("no NeXAS threads could be hooked")
 	}
 	return h, nil
 }
@@ -74,10 +74,10 @@ func (h *perfHook) RefreshThreads() error {
 			continue
 		}
 		if errors.Is(err, unix.EACCES) || errors.Is(err, unix.EPERM) {
-			return fmt.Errorf("perf hook permission denied for AQUARIUM thread %d; YomiRelay does not change kernel security settings: %w", tid, err)
+			return fmt.Errorf("perf hook permission denied for NeXAS thread %d; YomiRelay does not change kernel security settings: %w", tid, err)
 		}
 		if err != nil {
-			return fmt.Errorf("open perf hook for AQUARIUM thread %d: %w", tid, err)
+			return fmt.Errorf("open perf hook for NeXAS thread %d: %w", tid, err)
 		}
 		h.events[tid] = event
 	}
@@ -116,7 +116,7 @@ func (h *perfHook) Poll(timeoutMS int) ([]perfSample, error) {
 	for i, pollfd := range fds {
 		event := h.events[tids[i]]
 		if pollfd.Revents&(unix.POLLERR|unix.POLLNVAL) != 0 {
-			return nil, fmt.Errorf("perf hook failed for AQUARIUM thread %d", event.tid)
+			return nil, fmt.Errorf("perf hook failed for NeXAS thread %d", event.tid)
 		}
 		if pollfd.Revents&(unix.POLLIN|unix.POLLHUP) == 0 {
 			continue

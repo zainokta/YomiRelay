@@ -1,13 +1,12 @@
 package games
 
 import (
-	"runtime"
 	"sort"
 	"strings"
 	"sync"
 	"time"
 
-	"yomirelay/internal/source/aquarium"
+	"yomirelay/internal/source/nexas"
 	"yomirelay/internal/steam"
 )
 
@@ -57,29 +56,13 @@ func (r *Registry) Refresh() error {
 			game.EngineConfidence = "high"
 			game.DialogueSource = "renpy-callback"
 			game.SourceStatus = "available"
-		} else if installation.AppID == aquarium.AppID {
-			build, err := aquarium.Inspect(installation.InstallPath)
-			if err != nil {
-				continue
-			}
+		} else if detection, ok := nexas.Detect(installation.AppID, installation.InstallPath); ok {
 			game.Engine = "nexas"
-			game.EngineConfidence = "high"
-			game.DialogueSource = "nexas-exec-hook"
-			game.ExecutableHash = build.SHA256
-			game.SourceStatus = "unsupported-build"
-			game.SourceMessage = "This AQUARIUM executable version is not supported by the live NeXAS hook."
-			if build.VerifiedBuild {
-				if runtime.GOOS != "linux" {
-					game.SourceStatus = "unsupported-platform"
-					game.SourceMessage = "AQUARIUM live NeXAS hook currently requires Linux and Steam Proton."
-				} else if _, err := aquarium.FindHook(installation.InstallPath); err != nil {
-					game.SourceStatus = "unsupported-hook"
-					game.SourceMessage = "AQUARIUM build was recognized, but its NeXAS hook signature did not validate."
-				} else {
-					game.SourceStatus = "native-auto"
-					game.SourceMessage = "Live NeXAS execution hook is enabled automatically while YomiRelay is running."
-				}
-			}
+			game.EngineConfidence = detection.EngineConfidence
+			game.DialogueSource = detection.DialogueSource
+			game.SourceStatus = detection.SourceStatus
+			game.SourceMessage = detection.SourceMessage
+			game.ExecutableHash = detection.ExecutableHash
 		} else {
 			continue
 		}

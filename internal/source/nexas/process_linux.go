@@ -1,6 +1,6 @@
 //go:build linux
 
-package main
+package nexas
 
 import (
 	"bytes"
@@ -10,24 +10,22 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-
-	"yomirelay/internal/source/aquarium"
 )
 
-var errGameNotRunning = errors.New("AQUARIUM is not running")
-var errProcessExited = errors.New("AQUARIUM process exited")
+var errGameNotRunning = errors.New("NeXAS game is not running")
+var errProcessExited = errors.New("NeXAS game process exited")
 
 type processInfo struct {
 	PID       int
 	ImageBase uint64
 }
 
-func findAquariumProcess(root string) (processInfo, error) {
+func findGameProcess(root string, p profile) (processInfo, error) {
 	entries, err := os.ReadDir("/proc")
 	if err != nil {
 		return processInfo{}, err
 	}
-	executable := filepath.Join(root, "Aquarium.exe")
+	executable := filepath.Join(root, p.Executable)
 	var found *processInfo
 	for _, entry := range entries {
 		pid, err := strconv.Atoi(entry.Name())
@@ -36,11 +34,11 @@ func findAquariumProcess(root string) (processInfo, error) {
 		}
 		proc := filepath.Join("/proc", entry.Name())
 		comm, err := os.ReadFile(filepath.Join(proc, "comm"))
-		if err != nil || strings.TrimSpace(string(comm)) != "Aquarium.exe" {
+		if err != nil || strings.TrimSpace(string(comm)) != p.Executable {
 			continue
 		}
 		env, err := os.ReadFile(filepath.Join(proc, "environ"))
-		if err != nil || !bytes.Contains(append([]byte{0}, env...), []byte("\x00SteamAppId="+aquarium.AppID+"\x00")) {
+		if err != nil || !bytes.Contains(append([]byte{0}, env...), []byte("\x00SteamAppId="+p.AppID+"\x00")) {
 			continue
 		}
 		maps, err := os.ReadFile(filepath.Join(proc, "maps"))
@@ -52,7 +50,7 @@ func findAquariumProcess(root string) (processInfo, error) {
 			continue
 		}
 		if found != nil {
-			return processInfo{}, fmt.Errorf("multiple AQUARIUM processes found; close the extra instance")
+			return processInfo{}, fmt.Errorf("multiple %s processes found; close the extra instance", p.Executable)
 		}
 		value := processInfo{PID: pid, ImageBase: base}
 		found = &value
