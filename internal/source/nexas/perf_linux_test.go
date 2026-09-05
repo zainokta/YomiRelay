@@ -9,6 +9,22 @@ import (
 	"golang.org/x/sys/unix"
 )
 
+func TestPerfEventAttrIsUserSpaceOnly(t *testing.T) {
+	attr := perfEventAttr(0x679446)
+	if attr.Bits&unix.PerfBitExcludeKernel == 0 {
+		t.Fatal("kernel execution was not excluded from NeXAS perf hook")
+	}
+	if attr.Bits&unix.PerfBitExcludeHv == 0 {
+		t.Fatal("hypervisor execution was not excluded from NeXAS perf hook")
+	}
+	if attr.Bits&unix.PerfBitExcludeUser != 0 {
+		t.Fatal("user execution was accidentally excluded from NeXAS perf hook")
+	}
+	if attr.Ext1 != 0x679446 || attr.Bp_type != hwBreakpointExecute {
+		t.Fatalf("attr = %#v", attr)
+	}
+}
+
 func TestDecodePerfSampleReadsAX(t *testing.T) {
 	record := make([]byte, 24)
 	binary.LittleEndian.PutUint32(record[:4], unix.PERF_RECORD_SAMPLE)

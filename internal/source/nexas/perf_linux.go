@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"sort"
+	"strings"
 	"sync/atomic"
 	"unsafe"
 
@@ -74,7 +75,7 @@ func (h *perfHook) RefreshThreads() error {
 			continue
 		}
 		if errors.Is(err, unix.EACCES) || errors.Is(err, unix.EPERM) {
-			return fmt.Errorf("perf hook permission denied for NeXAS thread %d; YomiRelay does not change kernel security settings: %w", tid, err)
+			return fmt.Errorf("perf hook permission denied for NeXAS thread %d%s; YomiRelay requests a user-space-only breakpoint and does not change kernel security settings: %w", tid, perfPermissionContext(), err)
 		}
 		if err != nil {
 			return fmt.Errorf("open perf hook for NeXAS thread %d: %w", tid, err)
@@ -130,19 +131,23 @@ func (h *perfHook) Poll(timeoutMS int) ([]perfSample, error) {
 	return samples, nil
 }
 
-func openPerfThreadEvent(tid int, address uint64) (*perfThreadEvent, error) {
-	attr := unix.PerfEventAttr{
+func perfEventAttr(address uint64) unix.PerfEventAttr {
+	return unix.PerfEventAttr{
 		Type:             unix.PERF_TYPE_BREAKPOINT,
 		Size:             uint32(unsafe.Sizeof(unix.PerfEventAttr{})),
 		Sample:           1,
 		Sample_type:      unix.PERF_SAMPLE_REGS_USER,
-		Bits:             unix.PerfBitDisabled,
+		Bits:             unix.PerfBitDisabled | unix.PerfBitExcludeKernel | unix.PerfBitExcludeHv,
 		Wakeup:           1,
 		Bp_type:          hwBreakpointExecute,
 		Ext1:             address,
 		Ext2:             uint64(unsafe.Sizeof(uintptr(0))),
 		Sample_regs_user: 1 << perfRegX86AX,
 	}
+}
+
+func openPerfThreadEvent(tid int, address uint64) (*perfThreadEvent, error) {
+	attr := perfEventAttr(address)
 	fd, err := unix.PerfEventOpen(&attr, tid, -1, -1, unix.PERF_FLAG_FD_CLOEXEC)
 	if err != nil {
 		return nil, err
@@ -159,6 +164,18 @@ func openPerfThreadEvent(tid int, address uint64) (*perfThreadEvent, error) {
 		return nil, errno
 	}
 	return &perfThreadEvent{tid: tid, fd: fd, mapping: mapping}, nil
+}
+
+func perfPermissionContext() string {
+	data, err := os.ReadFile("/proc/sys/kernel/perf_event_paranoid")
+	if err != nil {
+		return ""
+	}
+	value := strings.TrimSpace(string(data))
+	if value == "" {
+		return ""
+	}
+	return fmt.Sprintf(" (kernel.perf_event_paranoid=%s)", value)
 }
 
 func (e *perfThreadEvent) close() {
