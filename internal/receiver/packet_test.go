@@ -31,3 +31,13 @@ func TestParsePacketRejectsMalformedInput(t *testing.T) {
 		}
 	}
 }
+
+func TestNeXASPacketPreservesEngineAndJapanese(t *testing.T) {
+	got, err := ParsePacket([]byte(`{"v":1,"gameId":"2515070","gameName":"AQUARIUM","engine":"nexas","speaker":"トーレス","text":"漢字、ひらがな、カタカナ「」……〜ー","timestamp":1788500000}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Engine != "nexas" || got.Text != "漢字、ひらがな、カタカナ「」……〜ー" || got.Speaker != "トーレス" {
+		t.Fatalf("packet = %+v", got)
+	}
+}

@@ -146,3 +146,20 @@ func testGame(t *testing.T) games.Game {
 	}
 	return games.Game{AppID: "111", Name: "Game", InstallPath: install, Engine: "renpy"}
 }
+
+func TestNativeHookFailsClosedWithoutWritingGameFiles(t *testing.T) {
+	root := t.TempDir()
+	game := games.Game{AppID: "2515070", InstallPath: root, Engine: "nexas"}
+	for _, action := range []func(games.Game) error{(Manager{}).Install, (Manager{}).Remove} {
+		if err := action(game); !errors.Is(err, ErrSourceUnavailable) {
+			t.Fatalf("action = %v", err)
+		}
+	}
+	files, err := os.ReadDir(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(files) != 0 {
+		t.Fatalf("native action wrote files: %+v", files)
+	}
+}

@@ -11,9 +11,10 @@ import (
 )
 
 var (
-	ErrFileConflict = errors.New("hook file exists but is not managed by YomiRelay")
-	ErrNotManaged   = errors.New("hook file is not managed by YomiRelay")
-	ErrUnsafePath   = errors.New("unsafe hook path")
+	ErrSourceUnavailable = errors.New("native dialogue hook is not available; no game files were changed")
+	ErrFileConflict      = errors.New("hook file exists but is not managed by YomiRelay")
+	ErrNotManaged        = errors.New("hook file is not managed by YomiRelay")
+	ErrUnsafePath        = errors.New("unsafe hook path")
 )
 
 type Manager struct{}
@@ -64,6 +65,9 @@ func (m Manager) Installed(game games.Game) bool {
 }
 
 func (m Manager) Install(game games.Game) error {
+	if game.Engine == "nexas" {
+		return ErrSourceUnavailable
+	}
 	path, err := m.HookPath(game)
 	if err != nil {
 		return err
@@ -115,6 +119,9 @@ func (m Manager) Install(game games.Game) error {
 }
 
 func (m Manager) Remove(game games.Game) error {
+	if game.Engine == "nexas" {
+		return ErrSourceUnavailable
+	}
 	path, err := m.HookPath(game)
 	if err != nil {
 		return err

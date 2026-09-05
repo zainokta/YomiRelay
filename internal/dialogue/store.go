@@ -7,6 +7,7 @@ import (
 
 // Dialogue is the normalized event shared by all backend consumers.
 type Dialogue struct {
+	Engine    string    `json:"engine,omitempty"`
 	GameID    string    `json:"gameId"`
 	GameName  string    `json:"gameName"`
 	Speaker   string    `json:"speaker,omitempty"`

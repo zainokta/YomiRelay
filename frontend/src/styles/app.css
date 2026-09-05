@@ -67,3 +67,8 @@ dt { color: #53677e; font-size: 0.82rem; } dd { margin: 0; overflow-wrap: anywhe
   .translation-status, .dialogue-translation { color: #aebdd0; }
   .dialogue-translation { border-color: #7e9bc4; }
 }
+
+.source-debug { margin-top: 1rem; border-top: 1px solid #8ba4c7; padding-top: 0.75rem; }
+.source-debug .path, .source-candidates p { overflow-wrap: anywhere; }
+.source-candidates { max-height: 22rem; overflow-y: auto; padding-inline-start: 1.5rem; }
+.source-candidates p { white-space: pre-wrap; }

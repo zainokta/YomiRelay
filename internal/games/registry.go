@@ -1,16 +1,24 @@
 package games
 
 import (
+	"runtime"
 	"sort"
 	"strings"
 	"sync"
 	"time"
 
+	"yomirelay/internal/aquarium"
 	"yomirelay/internal/steam"
 )
 
-// Game is the API-facing state of a detected Ren'Py installation.
+// Game is the API-facing state of a detected installation.
 type Game struct {
+	EngineConfidence string `json:"engineConfidence"`
+	DialogueSource   string `json:"dialogueSource"`
+	SourceStatus     string `json:"sourceStatus"`
+	SourceMessage    string `json:"sourceMessage,omitempty"`
+	ExecutableHash   string `json:"executableHash,omitempty"`
+
 	AppID         string     `json:"appId"`
 	Name          string     `json:"name"`
 	InstallPath   string     `json:"installPath"`
@@ -45,10 +53,35 @@ func (r *Registry) Refresh() error {
 	}
 	next := make(map[string]Game, len(installations))
 	for _, installation := range installations {
-		if !IsRenPy(installation.InstallPath) {
+		game := Game{AppID: installation.AppID, Name: installation.Name, InstallPath: installation.InstallPath}
+		if IsRenPy(installation.InstallPath) {
+			game.Engine = "renpy"
+			game.EngineConfidence = "high"
+			game.DialogueSource = "renpy-callback"
+			game.SourceStatus = "available"
+		} else if installation.AppID == aquarium.AppID {
+			build, err := aquarium.Inspect(installation.InstallPath)
+			if err != nil {
+				continue
+			}
+			game.Engine = "nexas"
+			game.EngineConfidence = "high"
+			game.DialogueSource = "native-hook"
+			game.ExecutableHash = build.SHA256
+			game.SourceStatus = "unsupported-build"
+			game.SourceMessage = "This AQUARIUM executable version is not supported. No hook will be installed."
+			if build.VerifiedBuild {
+				game.SourceStatus = "experimental"
+				game.SourceMessage = "NeXAS detected. Native capture is under development; live Reader delivery is not available yet."
+				if runtime.GOOS != "linux" {
+					game.SourceStatus = "unsupported-platform"
+					game.SourceMessage = "AQUARIUM native diagnostics currently require Linux and Steam Proton. No hook will be installed."
+				}
+			}
+		} else {
 			continue
 		}
-		game := Game{AppID: installation.AppID, Name: installation.Name, InstallPath: installation.InstallPath, Engine: "renpy"}
+
 		if r.hooks != nil {
 			game.HookInstalled = r.hooks(game)
 		}

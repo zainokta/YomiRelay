@@ -1,6 +1,6 @@
 # YomiRelay
 
-YomiRelay is a local Ren'Py dialogue relay: it sends installed Ren'Py Steam-game dialogue to ordinary selectable browser text on localhost. The Reader can optionally ask a locally authenticated Codex CLI for English translations and Japanese word glosses. It is not an OCR, dictionary, clipboard, process-injection, or remote-access tool.
+YomiRelay is a local Ren'Py dialogue relay: it sends installed Ren'Py Steam-game dialogue to ordinary selectable browser text on localhost. The Reader can optionally ask a locally authenticated Codex CLI for English translations and Japanese word glosses. Experimental AQUARIUM/NeXAS detection and read-only native diagnostics are also available. They do not yet provide live Reader dialogue. No OCR or clipboard monitoring is used.
 
 ## Requirements and quick start
 
@@ -61,3 +61,33 @@ The Reader renders normal light-DOM text with `lang="ja"`, so Yomitan can inspec
 ## Build details
 
 `./build.sh` installs frontend dependencies when needed, builds the Octane/Vite client, runs `go test ./...`, and writes `dist/yomirelay`. The frontend uses relative `/api/...` requests and one shared `/api/events` stream. Translation is not required for startup; it invokes `codex exec` only after the Reader button is enabled. No persistence or remote binding is included.
+
+## AQUARIUM native diagnostics (experimental)
+
+Steam discovery finds AQUARIUM (App ID `2515070`) automatically. The Games page shows its NeXAS engine and executable support status.
+Live dialogue capture is not ready. Install Hook stays disabled, and install/remove requests return `SOURCE_UNAVAILABLE` without writing game files.
+
+Build the backend and native helper with `./build.sh`. Then enable diagnostics:
+
+```sh
+YOMIRELAY_NATIVE_DEBUG=1 ./dist/yomirelay
+```
+
+Open Games and select **Inspect native source** on AQUARIUM. The separate helper reads the running Proton process without injection or debugger attachment.
+The panel shows UTF-8 memory candidates, the process ID, and executable hash. Candidates can include old script, backlog, and menu text.
+They never enter Reader history. Inspection is manual and temporary, not the final live source.
+
+For development with the existing `./run.sh`, build the helper first:
+
+```sh
+go build -o dist/yomirelay-aquarium ./native/aquarium
+YOMIRELAY_NATIVE_DEBUG=1 YOMIRELAY_AQUARIUM_HELPER="$PWD/dist/yomirelay-aquarium" ./run.sh
+```
+
+Diagnostics require Linux, the investigated executable hash, and permission to read the Proton process.
+Run YomiRelay outside containers or sandboxes that hide host processes. The helper reports access errors and does not change system security settings.
+Only one bounded inspection runs at a time. Closing YomiRelay cannot interrupt gameplay because the helper only reads memory.
+
+No files are installed in the game directory, so this diagnostic stage needs no ownership manifest or game-file removal.
+A future installer must add ownership tracking before it writes native hook files.
+See [the engine investigation](docs/aquarium-engine-investigation.md) for binary evidence and pending live-capture acceptance tests.

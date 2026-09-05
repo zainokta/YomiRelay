@@ -30,4 +30,5 @@ cd "$ROOT_DIR"
 go test ./...
 mkdir -p dist
 go build -o dist/yomirelay ./cmd/yomirelay
+go build -o dist/yomirelay-aquarium ./native/aquarium
 printf 'Built: %s\n' "$ROOT_DIR/dist/yomirelay"

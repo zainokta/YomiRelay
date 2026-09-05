@@ -15,6 +15,7 @@ import (
 const MaxDatagramSize = 8192
 
 type packet struct {
+	Engine    string `json:"engine"`
 	Version   int64  `json:"v"`
 	GameID    string `json:"gameId"`
 	GameName  string `json:"gameName"`
@@ -58,7 +59,7 @@ func ParsePacket(data []byte) (dialogue.Dialogue, error) {
 		return dialogue.Dialogue{}, fmt.Errorf("timestamp must be a positive Unix second")
 	}
 	return dialogue.Dialogue{
-		GameID: value.GameID, GameName: value.GameName, Speaker: value.Speaker,
+		GameID: value.GameID, GameName: value.GameName, Speaker: value.Speaker, Engine: value.Engine,
 		Text: value.Text, Timestamp: time.Unix(value.Timestamp, 0),
 	}, nil
 }

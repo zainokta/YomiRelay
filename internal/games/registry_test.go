@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"yomirelay/internal/steam"
+	"yomirelay/internal/testutil"
 )
 
 func TestRegistryRefreshListsOnlyDetectedGames(t *testing.T) {
@@ -76,3 +77,20 @@ func makeRenPyFixture(root string) error {
 }
 
 func makeGameFixture(root string) error { return os.Mkdir(filepath.Join(root, "game"), 0o755) }
+
+func TestRegistryDetectsAquariumAndRejectsOtherApps(t *testing.T) {
+	root := testutil.Aquarium(t)
+	registry := NewRegistry(func() ([]steam.Installation, error) {
+		return []steam.Installation{
+			{AppID: "2515070", Name: "あくありうむ。", InstallPath: root},
+			{AppID: "999", Name: "Unrelated", InstallPath: root},
+		}, nil
+	}, nil, nil)
+	if err := registry.Refresh(); err != nil {
+		t.Fatal(err)
+	}
+	got := registry.List()
+	if len(got) != 1 || got[0].Engine != "nexas" || got[0].EngineConfidence != "high" || got[0].DialogueSource != "native-hook" || got[0].SourceStatus != "unsupported-build" || got[0].HookInstalled {
+		t.Fatalf("games = %+v", got)
+	}
+}

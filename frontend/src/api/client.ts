@@ -3,12 +3,18 @@ export type Game = {
   name: string;
   installPath: string;
   engine: string;
+  engineConfidence: string;
+  dialogueSource: string;
+  sourceStatus: string;
+  sourceMessage?: string;
+  executableHash?: string;
   hookInstalled: boolean;
   active: boolean;
   lastSeen?: string;
 };
 
 export type Dialogue = {
+  engine?: string;
 	gameId: string;
 	gameName: string;
   speaker?: string;
@@ -66,4 +72,25 @@ export function translateDialogue(gameID: string, text: string, signal?: AbortSi
 		body: JSON.stringify({ gameId: gameID, text }),
 		signal,
 	});
+}
+
+export type SourceSnapshot = {
+  status: string;
+  message: string;
+  pid?: number;
+  build: { architecture: string; sha256: string; verifiedBuild: boolean };
+  bytesRead: number;
+  candidates: { address: string; raw: string }[];
+};
+
+export function inspectSource(appID: string): Promise<SourceSnapshot> {
+  return request<SourceSnapshot>(`/api/games/${encodeURIComponent(appID)}/source-debug`);
+}
+
+export function publishSourceCandidate(appID: string, raw: string): Promise<void> {
+  return request<void>(`/api/games/${encodeURIComponent(appID)}/source-debug/publish`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ raw }),
+  });
 }
