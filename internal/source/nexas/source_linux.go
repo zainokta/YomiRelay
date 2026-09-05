@@ -73,7 +73,7 @@ func Start(ctx context.Context, game Game, sink Sink, logger *log.Logger) error 
 		rva := address - process.ImageBase
 		logger.Printf("[nexas] resolved runtime hook: game=%s pid=%d rva=0x%x address=0x%x", game.Name, process.PID, rva, address)
 		logger.Printf("[nexas] attached execution hook: game=%s pid=%d address=0x%x", game.Name, process.PID, address)
-		err = observeProcess(ctx, process.PID, address, p.Normalize, sink, logger)
+		err = observeProcess(ctx, process.PID, address, process.ImageBase, build.ImageSize, p.Normalize, sink, logger)
 		if ctx.Err() != nil {
 			return nil
 		}
@@ -115,7 +115,7 @@ func waitForRuntimeHook(ctx context.Context, process processInfo, imageSize uint
 	return 0, ctx.Err()
 }
 
-func observeProcess(ctx context.Context, pid int, address uint64, normalize func(string) (Line, error), sink Sink, logger *log.Logger) error {
+func observeProcess(ctx context.Context, pid int, address uint64, imageBase uint64, imageSize uint32, normalize func(string) (Line, error), sink Sink, logger *log.Logger) error {
 	hook, err := newPerfHook(pid, address)
 	if err != nil {
 		return err
@@ -125,7 +125,7 @@ func observeProcess(ctx context.Context, pid int, address uint64, normalize func
 		logger = log.Default()
 	}
 	filter := newRenderContextFilter(func(contextID uint64) {
-		logger.Printf("[nexas] selected dialogue render context: pid=%d esi=0x%x", pid, uint32(contextID))
+		logger.Printf("[nexas] selected dialogue render context: pid=%d %s", pid, describeRenderContextKey(contextID))
 	})
 	lastRefresh := time.Now()
 	for ctx.Err() == nil {
@@ -146,7 +146,7 @@ func observeProcess(ctx context.Context, pid int, address uint64, normalize func
 			if err != nil {
 				continue
 			}
-			contextID := uint64(uint32(sample.SI))
+			contextID := renderContextKey(pid, sample.SI, imageBase, imageSize)
 			for _, ready := range filter.Add(contextID, line, now) {
 				sink(Event{Speaker: ready.Speaker, Text: ready.Text, Timestamp: now})
 			}

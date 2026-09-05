@@ -97,15 +97,16 @@ For the currently verified AQUARIUM Steam build, YomiRelay:
 4. reads only executable pages inside the loaded PE image while resolving the known NeXAS instruction signature,
 5. stops signature scanning after the build-specific runtime hook address is validated,
 6. attaches Linux `perf_event_open` execute breakpoints to the game threads,
-7. samples both EAX (the text pointer) and ESI (the NeXAS render-object context),
-8. normalizes and coalesces text independently per render context,
-9. selects the dialogue render context only after repeated sentence-like Japanese lines are observed,
-10. drops other contexts such as standalone character-name widgets, autosave notices, settings, and menu text,
-11. appends accepted dialogue directly to canonical Reader history.
+7. samples both EAX (the text pointer) and ESI (the current NeXAS render-object instance),
+8. reads the first word of the ESI object and, when it points back into the loaded AQUARIUM image, uses that vtable/class pointer as the stable render-context key,
+9. normalizes and coalesces text independently per stable render context,
+10. selects the dialogue render context only after repeated sentence-like Japanese lines are observed,
+11. drops other contexts such as standalone character-name widgets, autosave notices, settings, and menu text,
+12. appends accepted dialogue directly to canonical Reader history.
 
 The runtime signature scan in step 4 is an **attachment-time operation only**. It is not the old dialogue memory scanner and it does not poll game text. Once the instruction address resolves, dialogue capture is event-driven through the execution breakpoint.
 
-The render-context selector does not blacklist literal strings such as `設定` or `オートセーブ`. It learns a stable ESI render-object context from repeated dialogue-like lines, buffers a small number of candidates during selection, and then accepts only that context for the rest of the process session. This prevents character names and UI text from becoming separate Reader entries while still allowing short dialogue such as `ええ。` after the dialogue context has been selected.
+The render-context selector does not blacklist literal strings such as `設定` or `オートセーブ`. It groups changing ESI object instances by their stable in-module vtable/class pointer when possible, so recreation of the body-text object does not make later dialogue disappear. If the first object word cannot be read or is not an in-module class pointer, YomiRelay falls back to the raw ESI instance for that sample. A small number of candidate lines are buffered while the dialogue class is selected.
 
 The AQUARIUM profile deliberately uses a build-specific instruction signature. For the verified Steam build, the expected sequence includes `mov eax,[esi+0xA4]`; only the relative `call` displacement is wildcarded. The verified Proton image exposes two copies of this short signature, so the profile validates and chooses the known dialogue hook RVA rather than guessing between them.
 
@@ -141,13 +142,13 @@ After the process and runtime hook are available:
 [nexas] attached execution hook: game=AQUARIUM pid=... address=...
 ```
 
-After enough story text has been observed to identify the body-text widget:
+After enough story text has been observed to identify the body-text renderer:
 
 ```text
-[nexas] selected dialogue render context: pid=... esi=0x...
+[nexas] selected dialogue render context: pid=... class-vtable=0x...
 ```
 
-The selector intentionally waits for repeated dialogue-like observations instead of treating the first Japanese string as story text. A few candidate lines are buffered and replayed once the context is selected.
+If the object cannot be grouped by an in-module vtable, the diagnostic instead says `instance-esi=0x...`. The selector intentionally waits for repeated dialogue-like observations instead of treating the first Japanese string as story text.
 
 ### Linux permissions
 
@@ -202,13 +203,14 @@ Both addresses must remain loopback addresses.
 6. confirm `[nexas] resolved runtime hook` appears
 7. confirm `[nexas] attached execution hook` appears
 8. advance at least two normal story lines and confirm `[nexas] selected dialogue render context` appears
-9. advance Japanese story dialogue for at least 20 lines
-10. confirm story lines arrive automatically and in event order
-11. confirm standalone character names are not emitted as separate dialogue entries
-12. trigger autosave and confirm its notification is not emitted
-13. open Settings and confirm its labels/help text are not emitted
-14. confirm Yomitan can scan the rendered Japanese story text
-15. stop YomiRelay while AQUARIUM remains open and confirm the game continues normally
-16. start YomiRelay again and confirm context selection and capture resume
+9. when possible, confirm the selected diagnostic is `class-vtable=...` rather than `instance-esi=...`
+10. advance Japanese story dialogue for at least 20 lines, including short lines and a change of speaker
+11. confirm story lines arrive automatically and in event order even if NeXAS recreates its render object
+12. confirm standalone character names are not emitted as separate dialogue entries
+13. trigger autosave and confirm its notification is not emitted
+14. open Settings and confirm its labels/help text are not emitted
+15. confirm Yomitan can scan the rendered Japanese story text
+16. stop YomiRelay while AQUARIUM remains open and confirm the game continues normally
+17. start YomiRelay again and confirm context selection and capture resume
 
-For a failed test, include every `[nexas]` log line and note whether the failure happens before render-context selection or after it.
+For a failed test, include every `[nexas]` log line and note whether the selected context says `class-vtable` or `instance-esi`.
